@@ -1,0 +1,24 @@
+node_modules/
+dist/
+.next/
+*.lockb
+.turborepo/
+.worktrees/
+
+# Environment files
+.env
+.env.local
+.env.*.local
+*.env.local
+**/.env
+**/.env.local
+!**/.env.example
+.turbo/
+
+tsconfig.tsbuildinfo
+.claude
+docs/
+CLAUDE.md
+uploads/
+**/uploads/
+.cursor
