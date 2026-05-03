@@ -360,7 +360,7 @@ export class ConversationController {
                 agent: event.agent,
                 agentDisplayName: AGENT_DISPLAY_NAMES[event.agent] || event.agent,
                 step: event.step,
-                totalSteps: 5,
+                totalSteps: event.totalSteps || 6,
                 status: 'completed',
                 parallel: event.parallel,
               } as ProgressPayload,

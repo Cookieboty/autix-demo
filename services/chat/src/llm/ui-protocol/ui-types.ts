@@ -313,7 +313,7 @@ export interface StreamMessage {
 export type OrchestratorStreamEvent =
   | { type: 'agent_start'; agent: string; step: number; totalSteps: number; parallel?: boolean }
   | { type: 'token'; content: string; agent: string }
-  | { type: 'agent_end'; agent: string; step: number; parallel?: boolean }
+  | { type: 'agent_end'; agent: string; step: number; totalSteps?: number; parallel?: boolean }
   | { type: 'log'; level: 'info' | 'debug' | 'error'; message: string; data?: Record<string, any> }
   | { type: 'final'; result: OrchestratorResult };
 

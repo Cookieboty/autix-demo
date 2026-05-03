@@ -795,102 +795,102 @@ describe('第九章 Multi-Agent 单元测试 (mock model, 无需 API key)', () =
         response: string | (() => string);
         label: string;
       }> = [
-        {
-          label: 'planner',
-          match: (t) => t.includes('任务规划专家'),
-          response: JSON.stringify({
-            steps: [
-              {
-                id: 'step-1',
-                description: '分析 REQ-001 批量导入需求并产出报告',
-              },
-            ],
-            reasoning: '只有一个工单，无需拆分',
-          }),
-        },
-        {
-          label: 'evaluator',
-          match: (t) => t.includes('质量评估专家'),
-          response: JSON.stringify({
-            approved: true,
-            score: 90,
-            issues: [],
-            suggestion: '',
-          }),
-        },
-        {
-          label: 'reflector',
-          match: (t) => t.includes('总报告不达标'),
-          response: JSON.stringify({
-            revisedSteps: [
-              { id: 'step-1', description: '重新分析' },
-            ],
-            reflection: '前次报告不完整',
-          }),
-        },
-        {
-          label: 'triage',
-          match: (t) => t.includes('需求分诊'),
-          response: JSON.stringify({
-            action: 'handoff_to_analysis',
-            response: '',
-            reason: '需要完整需求分析',
-          }),
-        },
-        {
-          label: 'extract',
-          match: (t) => t.includes('需求分析专家') && t.includes('提取'),
-          response: JSON.stringify({
-            requirementType: '功能需求',
-            coreFeature: '批量导入 Excel 用户数据',
-            targetUsers: '运营人员',
-            businessGoal: '提升录入效率',
-            constraints: [],
-            priority: 'high',
-            isComplete: true,
-            missingFields: [],
-          }),
-        },
-        {
-          label: 'clarify',
-          match: (t) => t.includes('需求澄清专家'),
-          response: JSON.stringify({
-            needsClarification: false,
-            questions: [],
-          }),
-        },
-        {
-          label: 'supervisor',
-          match: (t) => t.includes('需求分析调度员'),
-          response: JSON.stringify({
-            experts: ['functional'],
-            reason: '仅需功能层面分析',
-          }),
-        },
-        {
-          label: 'functional-expert',
-          match: (t) => t.includes('功能需求分析专家'),
-          response:
-            '## 功能模块拆解\n\n- 文件上传模块\n- 数据校验模块\n- 批量入库模块',
-        },
-        {
-          label: 'risk',
-          match: (t) => t.includes('需求风险评估专家'),
-          response:
-            '## 风险评估\n- 大文件可能触发超时\n- 重复数据需要去重策略',
-        },
-        {
-          label: 'summary-critic',
-          match: (t) => t.includes('资深需求评审专家'),
-          response: '通过：报告完整，结构清晰。',
-        },
-        {
-          label: 'summary-actor',
-          match: (t) => t.includes('资深需求分析师'),
-          response:
-            '# 综合报告\n\n## 功能分析\n（已分析）\n\n## 风险\n（已评估）',
-        },
-      ];
+          {
+            label: 'planner',
+            match: (t) => t.includes('任务规划专家'),
+            response: JSON.stringify({
+              steps: [
+                {
+                  id: 'step-1',
+                  description: '分析 REQ-001 批量导入需求并产出报告',
+                },
+              ],
+              reasoning: '只有一个工单，无需拆分',
+            }),
+          },
+          {
+            label: 'evaluator',
+            match: (t) => t.includes('质量评估专家'),
+            response: JSON.stringify({
+              approved: true,
+              score: 90,
+              issues: [],
+              suggestion: '',
+            }),
+          },
+          {
+            label: 'reflector',
+            match: (t) => t.includes('总报告不达标'),
+            response: JSON.stringify({
+              revisedSteps: [
+                { id: 'step-1', description: '重新分析' },
+              ],
+              reflection: '前次报告不完整',
+            }),
+          },
+          {
+            label: 'triage',
+            match: (t) => t.includes('需求分诊'),
+            response: JSON.stringify({
+              action: 'handoff_to_analysis',
+              response: '',
+              reason: '需要完整需求分析',
+            }),
+          },
+          {
+            label: 'extract',
+            match: (t) => t.includes('需求分析专家') && t.includes('提取'),
+            response: JSON.stringify({
+              requirementType: '功能需求',
+              coreFeature: '批量导入 Excel 用户数据',
+              targetUsers: '运营人员',
+              businessGoal: '提升录入效率',
+              constraints: [],
+              priority: 'high',
+              isComplete: true,
+              missingFields: [],
+            }),
+          },
+          {
+            label: 'clarify',
+            match: (t) => t.includes('需求澄清专家'),
+            response: JSON.stringify({
+              needsClarification: false,
+              questions: [],
+            }),
+          },
+          {
+            label: 'supervisor',
+            match: (t) => t.includes('需求分析调度员'),
+            response: JSON.stringify({
+              experts: ['functional'],
+              reason: '仅需功能层面分析',
+            }),
+          },
+          {
+            label: 'functional-expert',
+            match: (t) => t.includes('功能需求分析专家'),
+            response:
+              '## 功能模块拆解\n\n- 文件上传模块\n- 数据校验模块\n- 批量入库模块',
+          },
+          {
+            label: 'risk',
+            match: (t) => t.includes('需求风险评估专家'),
+            response:
+              '## 风险评估\n- 大文件可能触发超时\n- 重复数据需要去重策略',
+          },
+          {
+            label: 'summary-critic',
+            match: (t) => t.includes('资深需求评审专家'),
+            response: '通过：报告完整，结构清晰。',
+          },
+          {
+            label: 'summary-actor',
+            match: (t) => t.includes('资深需求分析师'),
+            response:
+              '# 综合报告\n\n## 功能分析\n（已分析）\n\n## 风险\n（已评估）',
+          },
+        ];
 
       const callLog: string[] = [];
 
@@ -996,107 +996,107 @@ describe('第九章 Multi-Agent 单元测试 (mock model, 无需 API key)', () =
         response: string | (() => string);
         label: string;
       }> = [
-        {
-          label: 'planner',
-          match: (t) => t.includes('任务规划专家'),
-          response: JSON.stringify({
-            steps: [
-              { id: 'step-1', description: '初版分析' },
-            ],
-            reasoning: '一步搞定',
-          }),
-        },
-        {
-          label: 'evaluator',
-          match: (t) => t.includes('质量评估专家'),
-          response: () => {
-            evalCalls += 1;
-            if (evalCalls === 1) {
-              return JSON.stringify({
-                approved: false,
-                score: 50,
-                issues: ['缺少风险量化', '未说明性能影响'],
-                suggestion: '需要补充性能与风险量化数据',
-              });
-            }
-            return JSON.stringify({
-              approved: true,
-              score: 88,
-              issues: [],
-              suggestion: '',
-            });
+          {
+            label: 'planner',
+            match: (t) => t.includes('任务规划专家'),
+            response: JSON.stringify({
+              steps: [
+                { id: 'step-1', description: '初版分析' },
+              ],
+              reasoning: '一步搞定',
+            }),
           },
-        },
-        {
-          label: 'reflector',
-          match: (t) => t.includes('总报告不达标'),
-          response: JSON.stringify({
-            revisedSteps: [
-              { id: 'step-1', description: '补充性能与风险量化数据后重新分析' },
-            ],
-            reflection: '原计划遗漏了性能与风险量化',
-          }),
-        },
-        {
-          label: 'triage',
-          match: (t) => t.includes('需求分诊'),
-          response: JSON.stringify({
-            action: 'handoff_to_analysis',
-            response: '',
-            reason: '需要分析',
-          }),
-        },
-        {
-          label: 'extract',
-          match: (t) => t.includes('需求分析专家') && t.includes('提取'),
-          response: JSON.stringify({
-            requirementType: '功能需求',
-            coreFeature: '批量导入',
-            targetUsers: '运营',
-            businessGoal: '效率',
-            constraints: [],
-            priority: 'high',
-            isComplete: true,
-            missingFields: [],
-          }),
-        },
-        {
-          label: 'clarify',
-          match: (t) => t.includes('需求澄清专家'),
-          response: JSON.stringify({
-            needsClarification: false,
-            questions: [],
-          }),
-        },
-        {
-          label: 'supervisor',
-          match: (t) => t.includes('需求分析调度员'),
-          response: JSON.stringify({
-            experts: ['functional'],
-            reason: 'mock',
-          }),
-        },
-        {
-          label: 'functional-expert',
-          match: (t) => t.includes('功能需求分析专家'),
-          response: '## 功能模块拆解\n- A\n- B',
-        },
-        {
-          label: 'risk',
-          match: (t) => t.includes('需求风险评估专家'),
-          response: '## 风险评估\n- R1',
-        },
-        {
-          label: 'summary-critic',
-          match: (t) => t.includes('资深需求评审专家'),
-          response: '通过',
-        },
-        {
-          label: 'summary-actor',
-          match: (t) => t.includes('资深需求分析师'),
-          response: '# 综合报告\n（mock）',
-        },
-      ];
+          {
+            label: 'evaluator',
+            match: (t) => t.includes('质量评估专家'),
+            response: () => {
+              evalCalls += 1;
+              if (evalCalls === 1) {
+                return JSON.stringify({
+                  approved: false,
+                  score: 50,
+                  issues: ['缺少风险量化', '未说明性能影响'],
+                  suggestion: '需要补充性能与风险量化数据',
+                });
+              }
+              return JSON.stringify({
+                approved: true,
+                score: 88,
+                issues: [],
+                suggestion: '',
+              });
+            },
+          },
+          {
+            label: 'reflector',
+            match: (t) => t.includes('总报告不达标'),
+            response: JSON.stringify({
+              revisedSteps: [
+                { id: 'step-1', description: '补充性能与风险量化数据后重新分析' },
+              ],
+              reflection: '原计划遗漏了性能与风险量化',
+            }),
+          },
+          {
+            label: 'triage',
+            match: (t) => t.includes('需求分诊'),
+            response: JSON.stringify({
+              action: 'handoff_to_analysis',
+              response: '',
+              reason: '需要分析',
+            }),
+          },
+          {
+            label: 'extract',
+            match: (t) => t.includes('需求分析专家') && t.includes('提取'),
+            response: JSON.stringify({
+              requirementType: '功能需求',
+              coreFeature: '批量导入',
+              targetUsers: '运营',
+              businessGoal: '效率',
+              constraints: [],
+              priority: 'high',
+              isComplete: true,
+              missingFields: [],
+            }),
+          },
+          {
+            label: 'clarify',
+            match: (t) => t.includes('需求澄清专家'),
+            response: JSON.stringify({
+              needsClarification: false,
+              questions: [],
+            }),
+          },
+          {
+            label: 'supervisor',
+            match: (t) => t.includes('需求分析调度员'),
+            response: JSON.stringify({
+              experts: ['functional'],
+              reason: 'mock',
+            }),
+          },
+          {
+            label: 'functional-expert',
+            match: (t) => t.includes('功能需求分析专家'),
+            response: '## 功能模块拆解\n- A\n- B',
+          },
+          {
+            label: 'risk',
+            match: (t) => t.includes('需求风险评估专家'),
+            response: '## 风险评估\n- R1',
+          },
+          {
+            label: 'summary-critic',
+            match: (t) => t.includes('资深需求评审专家'),
+            response: '通过',
+          },
+          {
+            label: 'summary-actor',
+            match: (t) => t.includes('资深需求分析师'),
+            response: '# 综合报告\n（mock）',
+          },
+        ];
 
       class DynRoutedModel extends FakeListChatModel {
         constructor() {
@@ -1347,7 +1347,10 @@ describe('第九章 Multi-Agent 单元测试 (mock model, 无需 API key)', () =
 // 集成测试（需要真实 LLM API Key）—— 对应文档 9.7 端到端验证
 // ============================================================================
 
-const HAS_API_KEY = !!(process.env.OPENAI_API_KEY || process.env.OPENAI_BASE_URL);
+const HAS_API_KEY = !!(
+  (process.env.OPENAI_API_KEY && !process.env.OPENAI_API_KEY.includes('_here')) ||
+  process.env.OPENAI_BASE_URL
+);
 
 describe.skipIf(!HAS_API_KEY)(
   '第九章 Multi-Agent 集成测试 (需要 LLM API Key)',
@@ -1472,8 +1475,7 @@ describe.skipIf(!HAS_API_KEY)(
         const result = await triageNode(state, { model });
         console.log('  识别 intent:', result.intent);
 
-        expect(result.intent).toBeDefined();
-        expect(result.messages!.length).toBe(1);
+        expect(result.intent).toBe('query');
       }, 60000);
     });
 

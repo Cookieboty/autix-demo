@@ -55,7 +55,9 @@ export function createExpertSubGraph(opts: ExpertOptions) {
       ]);
       return { messages: [response] };
     } catch (err) {
-      console.error(`[${opts.name} Expert] 执行失败：`, err);
+      if (process.env.NODE_ENV !== 'test') {
+        console.error(`[${opts.name} Expert] 执行失败：`, err);
+      }
       return {
         [outputField]: `[${opts.name} 专家暂不可用：${String(err).substring(0, 100)}] 本项分析已跳过，建议人工补充。`,
       } as any;
@@ -353,7 +355,8 @@ export async function supervisorNode(
   config: { model: BaseChatModel },
 ): Promise<Partial<typeof RequirementAnalysisState.State>> {
   const { model } = config;
-  const structured = model.withStructuredOutput(supervisorSchema);
+
+  const structured = model.withStructuredOutput(supervisorSchema, { method: 'functionCalling' });
   const result = await structured.invoke([
     {
       role: 'system',

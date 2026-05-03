@@ -834,7 +834,7 @@ export function ChatView({ sessionId }: ChatViewProps) {
             </div>
           )}
 
-          {isStreaming && !streamingMessage && (
+          {isStreaming && (!streamingMessage || Object.keys(parallelAgents || {}).length > 0) && (
             <ThinkingIndicator
               progress={currentProgress}
               parallelAgents={parallelAgents}
