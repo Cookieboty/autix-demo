@@ -138,6 +138,46 @@ model task_events {
   @@index([userId, createdAt])
 }
 
+model token_usages {
+  id                String   @id @default(cuid())
+  conversationId    String?  @db.VarChar(255)
+  messageId         String?  @db.VarChar(255)
+  threadId          String?  @db.VarChar(255)
+  graphName         String   @db.VarChar(100)
+  nodeName          String   @db.VarChar(100)
+  agentName         String   @db.VarChar(100)
+  modelConfigId     String?  @db.VarChar(255)
+  modelName         String   @db.VarChar(100)
+  provider          String   @default("openai") @db.VarChar(50)
+  inputTokens       Int      @default(0)
+  outputTokens      Int      @default(0)
+  totalTokens       Int      @default(0)
+  cachedInputTokens Int      @default(0)
+  estimatedCostUsd  Float    @default(0)
+  isEstimated       Boolean  @default(false)
+  latencyMs         Int      @default(0)
+  overrideReason    String?
+  createdAt         DateTime @default(now())
+
+  @@index([conversationId])
+  @@index([graphName, nodeName])
+  @@index([agentName])
+  @@index([modelConfigId])
+  @@index([createdAt])
+}
+
+model agent_model_defaults {
+  id              String   @id @default(cuid())
+  agentName       String   @unique @db.VarChar(100)
+  modelConfigId   String   @db.VarChar(255)
+  tier            String   @default("strong") @db.VarChar(20)
+  description     String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([agentName])
+}
+
 enum ArtifactType {
   MARKDOWN
   CODE
