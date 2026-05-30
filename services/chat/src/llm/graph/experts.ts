@@ -345,7 +345,8 @@ const supervisorSchema = z.object({
     .describe(
       '需要参与本次分析的专家列表。functional=功能分析, performance=性能分析, security=安全分析, compliance=合规分析',
     ),
-  reason: z.string().describe('选择这些专家的理由'),
+  // 原 reason 字段仅用于日志、不参与控制流；部分模型经网关会把它返回成对象，
+  // 触发结构化输出解析报错，故从 schema 中移除（不再向模型索取该字段）。
 });
 
 export async function supervisorNode(
@@ -354,7 +355,9 @@ export async function supervisorNode(
 ): Promise<Partial<typeof RequirementAnalysisState.State>> {
   const { model } = config;
   const structured = model.withStructuredOutput(supervisorSchema);
-  const result = await structured.invoke([
+  let result: z.infer<typeof supervisorSchema>;
+  try {
+    result = (await structured.invoke([
     {
       role: 'system',
       content: `你是需求分析调度员。根据已澄清的需求，判断本次需要哪些专家评审。
@@ -377,11 +380,15 @@ export async function supervisorNode(
       role: 'user',
       content: `已澄清的需求信息：${JSON.stringify(state.clarified)}\n\n原始输入：${state.input}`,
     },
-  ]);
+    ])) as z.infer<typeof supervisorSchema>;
+  } catch (err) {
+    // 部分模型经网关返回的结构化输出不规范会触发解析报错。
+    // 调度结果可降级：至少跑 functional 专家，保证分析链不被一次解析失败打断。
+    console.warn('[Supervisor] 结构化输出解析失败，降级为 functional：', String(err).slice(0, 120));
+    result = { experts: ['functional'] };
+  }
 
-  console.log(
-    `[Supervisor] 选中的专家：${result.experts.join(', ')}，理由：${result.reason}`,
-  );
+  console.log(`[Supervisor] 选中的专家：${result.experts.join(', ')}`);
   return { activeExperts: result.experts };
 }
 

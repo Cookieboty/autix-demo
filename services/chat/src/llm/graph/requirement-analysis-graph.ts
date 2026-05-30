@@ -44,10 +44,16 @@ export const RequirementAnalysisState = Annotation.Root({
   ...MessagesAnnotation.spec,
   
   // 用户原始输入
-  input: Annotation<string>,
+  // reducer：9.3 并行专家子图会各自把 input 透传回写，LastValue 不允许同一 step 多次写入，
+  // 这里改为 keep-last，容忍并行分支的重复写入。
+  input: Annotation<string>({
+    reducer: (_, newValue) => newValue,
+  }),
   
-  // RAG 检索上下文
-  retrievedContext: Annotation<string>,
+  // RAG 检索上下文（同 input，需容忍并行分支回写）
+  retrievedContext: Annotation<string>({
+    reducer: (_, newValue) => newValue,
+  }),
   
   // 用户意图（带默认值）
   intent: Annotation<'analyze' | 'query' | 'chat'>({
@@ -55,14 +61,18 @@ export const RequirementAnalysisState = Annotation.Root({
     default: () => 'analyze' as const,
   }),
   
-  // extract 节点输出：结构化的需求字段
-  extracted: Annotation<Record<string, unknown>>,
+  // extract 节点输出：结构化的需求字段（需容忍并行分支回写）
+  extracted: Annotation<Record<string, unknown>>({
+    reducer: (_, newValue) => newValue,
+  }),
   
-  // clarify 节点输出：澄清判断结果
+  // clarify 节点输出：澄清判断结果（需容忍并行分支回写）
   clarified: Annotation<{
     needsClarification: boolean;
     questions: string[];
-  }>,
+  }>({
+    reducer: (_, newValue) => newValue,
+  }),
   
   // analysis 节点输出：多维度分析结果（Markdown）
   analysisResult: Annotation<string>,
@@ -458,7 +468,9 @@ ${state.critique}
  */
 export const triageSchema = z.object({
   action: z.enum(['answer', 'handoff_to_query', 'handoff_to_analysis']),
-  response: z.string().describe('当 action=answer 时直接回复用户的内容'),
+  // OpenAI 严格结构化输出要求所有字段必填，故用 .nullable()（字段在但允许 null）而非 .optional()；
+  // handoff 时 response 可为 null，避免解析报错。
+  response: z.string().nullable().describe('当 action=answer 时直接回复用户的内容，否则为 null'),
   reason: z.string().nullable().describe('交接理由，无理由时为 null'),
 });
 
@@ -472,25 +484,34 @@ export async function triageNode(
 ): Promise<Partial<typeof RequirementAnalysisState.State>> {
   const { model } = config;
   const structured = model.withStructuredOutput(triageSchema);
-  const result = await structured.invoke([
-    {
-      role: 'system',
-      content: `你是需求分诊 Agent。判断用户意图，规则：
+  let result: z.infer<typeof triageSchema>;
+  try {
+    result = (await structured.invoke([
+      {
+        role: 'system',
+        content: `你是需求分诊 Agent。判断用户意图，规则：
 - 闲聊、问候、术语解释 → action: answer（直接在 response 里回答用户）
 - 查询已有需求的状态/信息（含 REQ-编号） → action: handoff_to_query
 - 需要完整性/冲突/复杂度分析、需求评估 → action: handoff_to_analysis
 转交时给出简要理由。`,
-    },
-    ...state.messages,
-    { role: 'user', content: state.input },
-  ]);
+      },
+      ...state.messages,
+      { role: 'user', content: state.input },
+    ])) as z.infer<typeof triageSchema>;
+  } catch (err) {
+    // 部分模型经网关返回的结构化输出不规范（如根节点返回数组）会触发解析报错。
+    // 分诊不是核心产出，降级为「进入完整分析链」这一安全默认值，保证长任务不被一次解析失败打断。
+    console.warn('[triage] 结构化输出解析失败，降级为 analyze：', String(err).slice(0, 120));
+    result = { action: 'handoff_to_analysis', response: null, reason: null };
+  }
 
   if (result.action === 'answer') {
+    const answer = result.response ?? '';
     return {
-      messages: [new AIMessage(result.response)],
+      messages: [new AIMessage(answer)],
       intent: 'chat',
-      chatResponse: result.response,
-      summary: result.response,
+      chatResponse: answer,
+      summary: answer,
       handoffReason: '',
     };
   }
