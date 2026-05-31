@@ -23,6 +23,13 @@ import type { OrchestratorResult } from '../llm/ui-protocol/ui-types';
 import { SearchService } from '../document/search.service';
 import { ModelConfigService } from '../model-config/model-config.service';
 import { MessageRole } from '@prisma/client';
+
+/**
+ * 20.7：对话历史注入的轮数。N 太小多轮记不住，N 太大烧 token 还可能超窗；
+ * 多数需求分析对话在 5 轮内收敛，故默认 5。更长的深度对话应上第十章摘要式记忆
+ * （早期历史压成摘要 + 最近几轮原文），本章把"带摘要的全历史"列为可配置增强。
+ */
+const CHAT_HISTORY_TURNS = 5;
 import { loadLangChainConfig } from '../config/load-langchain-config';
 import { UIActionParser } from './ui-action.parser';
 import { PrismaService } from '../prisma/prisma.service';
@@ -250,6 +257,29 @@ export class ConversationController {
         }
       }
 
+      // ── Step 0.5：取最近 N 轮对话历史（在持久化当前消息之前取，避免把当前轮算进去）──
+      // 第二十章 20.7：主链路此前每轮只喂当前消息、不带历史，多轮代词指代会错。
+      // 这里在 controller（DB 归属层）取最近历史，拼到喂给 orchestrator 的 input 前面，
+      // orchestrator 保持无 DB 依赖（其 input 注释本就声明"可能已拼接历史上下文"）。
+      let historyBlock = '';
+      if (!isUIAction) {
+        const recent = await this.messageService.getRecentHistory(
+          id,
+          CHAT_HISTORY_TURNS * 2, // N 轮 ≈ N*2 条（user+assistant）
+        );
+        if (recent.length > 0) {
+          historyBlock =
+            '## 对话历史（最近若干轮，供理解上下文/代词指代）\n' +
+            recent
+              .map(
+                (m) =>
+                  `${m.role === MessageRole.USER ? '用户' : '助手'}：${m.content}`,
+              )
+              .join('\n') +
+            '\n\n## 当前问题\n';
+        }
+      }
+
       // ── Step 1：持久化用户消息（仅对文本消息）────────────────────
       // UI 操作不保存为用户消息，只有真实的文本输入才保存
       if (!isUIAction) {
@@ -313,8 +343,12 @@ export class ConversationController {
       }));
 
       // 使用流式 API
+      // 20.7：把对话历史前置到当前消息（UI 操作不带历史，走原消息内容）
+      const orchestratorInput = isUIAction
+        ? (messageContent as string)
+        : `${historyBlock}${body.message as string}`;
       const stream = this.orchestratorService.streamOrchestrate(
-        (isUIAction ? messageContent : body.message) as string,
+        orchestratorInput,
         retrievedContext,
         modelConfigId,
         uiContext || undefined,

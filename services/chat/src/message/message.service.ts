@@ -26,6 +26,19 @@ export class MessageService {
     });
   }
 
+  /**
+   * 第二十章 20.7：取最近 `take` 条消息，按时间正序返回（用于多轮对话历史注入）。
+   * 与 getHistory（取最旧 limit 条）相反，这里取最新 take 条再翻回正序。
+   */
+  async getRecentHistory(conversationId: string, take: number) {
+    const rows = await this.prisma.messages.findMany({
+      where: { conversationId },
+      orderBy: { createdAt: 'desc' },
+      take,
+    });
+    return rows.reverse();
+  }
+
   async getHistoryAsLangChainMessages(conversationId: string): Promise<BaseMessage[]> {
     const messages = await this.getHistory(conversationId);
     return messages.map((m) =>
