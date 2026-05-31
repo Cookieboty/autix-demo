@@ -12,6 +12,8 @@ export interface LlmConfig {
 export interface RetrievalConfig {
   enabled: boolean;
   topK: number;
+  /** 检索模式：simple=纯向量；hybrid=向量+BM25 多召回再重排（第二十章 20.2，默认 hybrid） */
+  mode?: 'simple' | 'hybrid';
 }
 
 export interface ToolsConfig {

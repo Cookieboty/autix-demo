@@ -6,6 +6,7 @@ llm:
 
 retrieval:
   enabled: true
+  mode: hybrid    # simple | hybrid（第二十章 20.2：默认 hybrid = 向量+BM25 多召回 → embedding 重排）
   topK: 5
 
 tools:

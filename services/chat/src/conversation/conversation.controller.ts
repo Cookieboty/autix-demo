@@ -260,9 +260,11 @@ export class ConversationController {
       const config = loadLangChainConfig();
       const topK = config.retrieval?.topK ?? 5;
 
-      let searchResults: Awaited<ReturnType<SearchService['similaritySearch']>> = [];
+      let searchResults: Awaited<ReturnType<SearchService['search']>> = [];
       try {
-        searchResults = await this.searchService.similaritySearch(
+        // 第二十章 20.2：主链路检索升级——走 retrieval.mode（默认 hybrid+rerank），
+        // simple 模式内部退回纯向量；任一路失败 search() 内部已降级，不炸主链路。
+        searchResults = await this.searchService.search(
           body.message as string,
           userId,
           topK,
