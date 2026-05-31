@@ -25,6 +25,37 @@ import {
   checkDataResidencyTool,
   checkRetentionPolicyTool,
 } from '../tools/expert-tools';
+import { mcpManager } from '../../mcp/mcp-bootstrap';
+
+// ---------------------------------------------------------------------------
+// 20.4：专家工具来源 = 真实 MCP 工具（已白名单过滤）∪ 该领域的本地 Mock 工具。
+//
+// 为什么是「∪」而非文档示意的「替换」：专家的 system prompt 明确指示调用各自的
+// 领域工具（search_requirement / check_security_policy 等 Mock 工具），直接替换会让
+// prompt 引用的工具名落空。MCP 工具（analyze_completeness / web_search 等）是通用的
+// 需求分析能力，对所有专家都有用，故叠加。MCP 不可用时 getTools()=[] → 退回纯 Mock。
+// 这是第十二章(MCP)×第十八章(白名单)×第八章(降级)三章能力在同一点协作。
+// ---------------------------------------------------------------------------
+const MOCK_TOOLS: Record<string, any[]> = {
+  functional: [searchRequirementTool, checkConflictsTool, readFeatureSpecTool],
+  performance: [loadPerfBaselineTool, checkPerfBudgetTool],
+  security: [checkSecurityPolicyTool, listAuthScenariosTool],
+  compliance: [
+    checkComplianceMatrixTool,
+    checkDataResidencyTool,
+    checkRetentionPolicyTool,
+  ],
+};
+
+export function getExpertTools(domain: string): any[] {
+  const mock = MOCK_TOOLS[domain] ?? [];
+  try {
+    const mcpTools = mcpManager.getTools(); // 已含第十八章白名单过滤
+    return [...mcpTools, ...mock];
+  } catch {
+    return mock; // 连不上也降级，绝不让工具层故障炸掉分析
+  }
+}
 
 // ---------------------------------------------------------------------------
 // 专家子图工厂
@@ -179,7 +210,7 @@ export function createFunctionalExpert(model: BaseChatModel, obs?: GraphObservab
     name: 'functional',
     model,
     obs,
-    tools: [searchRequirementTool, checkConflictsTool, readFeatureSpecTool],
+    tools: getExpertTools('functional'),
     systemPrompt: `你是功能需求分析专家，专注评估需求的功能完整性、交互合理性和系统兼容性。
 
 **核心职责**：
@@ -217,7 +248,7 @@ export function createPerformanceExpert(model: BaseChatModel, obs?: GraphObserva
     name: 'performance',
     model,
     obs,
-    tools: [loadPerfBaselineTool, checkPerfBudgetTool],
+    tools: getExpertTools('performance'),
     systemPrompt: `你是系统性能分析专家，专注评估需求对系统吞吐、延迟、资源占用的影响。
 
 **核心职责**：
@@ -259,7 +290,7 @@ export function createSecurityExpert(model: BaseChatModel, obs?: GraphObservabil
     name: 'security',
     model,
     obs,
-    tools: [checkSecurityPolicyTool, listAuthScenariosTool],
+    tools: getExpertTools('security'),
     systemPrompt: `你是信息安全分析专家，专注识别需求中的安全风险和合规要求。
 
 **核心职责**：
@@ -301,11 +332,7 @@ export function createComplianceExpert(model: BaseChatModel, obs?: GraphObservab
     name: 'compliance',
     model,
     obs,
-    tools: [
-      checkComplianceMatrixTool,
-      checkDataResidencyTool,
-      checkRetentionPolicyTool,
-    ],
+    tools: getExpertTools('compliance'),
     systemPrompt: `你是数据合规与隐私保护专家，专注评估需求的法律合规性和监管风险。
 
 **核心职责**：
