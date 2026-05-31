@@ -24,6 +24,7 @@ import {
   createSummaryAgent,
 } from './sub-agents';
 import { createChatModelFromDbConfig, createChatModel } from '../model.factory';
+import { loadSkill } from '../../skills/skill-loader';
 import { ModelConfigService } from '../../model-config/model-config.service';
 import { UIResponseService } from '../ui-protocol/ui-response.service';
 import type { UIContext } from '../../conversation/ui-action.parser';
@@ -39,6 +40,19 @@ export class OrchestratorService {
     private readonly modelConfigService: ModelConfigService,
     private readonly uiResponseService: UIResponseService,
   ) {}
+
+  /**
+   * 20.5：把需求分析方法论（第十三章 SKILL.md）前置注入到检索上下文里，
+   * 和 RAG 检索内容一起喂给图（经 20.3 注入 actor/专家 prompt）。
+   * RAG 补「知道什么」（业务事实），Skills 补「怎么做」（分析章法），两者叠加。
+   * skill 不可用时原样返回检索上下文，不影响主链路。
+   */
+  private enhanceContextWithSkill(retrievedContext: string): string {
+    const base = retrievedContext || '无相关参考文档';
+    const skill = loadSkill('requirement-analysis');
+    if (!skill) return base;
+    return `## 分析方法论（Skill: ${skill.name}）\n${skill.content}\n\n${base}`;
+  }
 
   /**
    * 执行完整的需求分析 Pipeline。
@@ -100,7 +114,7 @@ export class OrchestratorService {
       
       const graphResult = await runAnalysisGraph({
         input,
-        retrievedContext: retrievedContext || '无相关参考文档',
+        retrievedContext: this.enhanceContextWithSkill(retrievedContext),
         model,
       });
 
@@ -426,7 +440,7 @@ export class OrchestratorService {
       
       const graphStream = streamAnalysisGraph({
         input,
-        retrievedContext: retrievedContext || '无相关参考文档',
+        retrievedContext: this.enhanceContextWithSkill(retrievedContext),
         model,
       });
       
