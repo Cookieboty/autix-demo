@@ -1,0 +1,10 @@
+{
+  "requirementId": "REQ-2026-001",
+  "title": "需求分析智能体的会话记忆",
+  "proposer": "产品部",
+  "coreFeature": "为需求分析对话提供按会话隔离的上下文记忆，长对话自动裁剪",
+  "targetUsers": "需求分析师、产品经理",
+  "businessGoal": "在多轮澄清中保持上下文一致，减少重复提问",
+  "constraints": ["单会话上下文不超过 2000 tokens", "会话之间互相隔离"],
+  "priority": "high"
+}
