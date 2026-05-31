@@ -1,18 +1,33 @@
-FROM oven/bun:1-alpine AS base
+# infra/compose/Dockerfile.web — chat-web 的 Next.js standalone 多阶段构建
+# 关键修正：① 用 bun.lock  ② 实际目录是 clients/chat-web（不是 clients/web）
+#   ③ standalone 需 next.config 开 output:'standalone'  ④ 端口 3002  ⑤ 用 bun 跑 server.js（bun 镜像无 node）
 
+# ── Stage 1: 安装依赖 ──
+FROM oven/bun:1.3.11 AS deps
 WORKDIR /app
-COPY package.json ./
-COPY bun.lockb ./
+COPY package.json bun.lock bunfig.toml ./
+COPY packages/types/package.json ./packages/types/
+COPY packages/contracts/package.json ./packages/contracts/
+COPY packages/database/package.json ./packages/database/
+COPY services/chat/package.json ./services/chat/
+COPY services/user-system/package.json ./services/user-system/
+COPY clients/chat-web/package.json ./clients/chat-web/
+COPY clients/admin-web/package.json ./clients/admin-web/
 RUN bun install --frozen-lockfile
 
+# ── Stage 2: 构建（turbo 按 filter 只构建 chat-web）──
+FROM deps AS build
 COPY . .
-RUN bun run build
+RUN bun run build --filter=@autix/chat-web
 
-FROM base AS runner
+# ── Stage 3: 运行时（只带 standalone 产物）──
+FROM oven/bun:1.3.11-slim AS runtime
 WORKDIR /app
 ENV NODE_ENV=production
-COPY --from=base /app/.next/standalone ./
-COPY --from=base /app/.next/static ./
-COPY --from=base /app/public ./public
-EXPOSE 3000
-CMD ["node", "server.js"]
+ENV PORT=3002
+# Next standalone（monorepo）：standalone 内保留 clients/chat-web/server.js 与追踪到的 node_modules
+COPY --from=build /app/clients/chat-web/.next/standalone ./
+COPY --from=build /app/clients/chat-web/.next/static ./clients/chat-web/.next/static
+COPY --from=build /app/clients/chat-web/public ./clients/chat-web/public
+EXPOSE 3002
+CMD ["bun", "clients/chat-web/server.js"]

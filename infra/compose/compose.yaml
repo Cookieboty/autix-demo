@@ -1,23 +1,76 @@
+# infra/compose/compose.yaml — 单机一键起：数据存储 + 评测服务 + 迁移 + 应用
+# 端口对齐实际：chat 4001、web 3002。健康检查打第十六章的 /ready（真探 DB）。
+# 用法：在本文件目录放 .env（POSTGRES_PASSWORD / OPENAI_API_KEY[/ OPENAI_BASE_URL]），再 docker compose up
+
 services:
+  postgres:
+    image: pgvector/pgvector:pg16 # 带 pgvector 扩展，chat 的向量检索要用
+    environment:
+      POSTGRES_DB: autix_chat
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  qdrant: # 可选：Qdrant 向量库路径。chat 默认走 pgvector，此服务供 Qdrant-backed 检索备用
+    image: qdrant/qdrant
+    ports:
+      - "6333:6333"
+
+  ragas: # 第十七章的本地 RAGAS 评测服务（faithfulness）
+    build:
+      context: ./ragas
+    ports:
+      - "7860:7860"
+
+  migrate: # 一次性 init 容器：跑完 prisma migrate deploy 即退出，不常驻
+    build:
+      context: ../..
+      dockerfile: infra/compose/Dockerfile.chat
+    command: sh -c "cd /app/services/chat && bunx prisma migrate deploy"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: "postgresql://postgres:${POSTGRES_PASSWORD}@postgres:5432/autix_chat"
+    restart: "no"
+
   chat:
     build:
       context: ../..
       dockerfile: infra/compose/Dockerfile.chat
     ports:
-      - "3001:3001"
+      - "4001:4001" # 端口对齐实际
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully # 等迁移跑完再起
+    environment:
+      DATABASE_URL: "postgresql://postgres:${POSTGRES_PASSWORD}@postgres:5432/autix_chat"
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      OPENAI_BASE_URL: ${OPENAI_BASE_URL:-}
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:3001/health"]
-      interval: 10s
+      test: ["CMD", "bun", "-e", "fetch('http://localhost:4001/ready').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
       timeout: 5s
-      retries: 5
-      start_period: 10s
+      retries: 3
+      start_period: 20s
 
   web:
     build:
       context: ../..
       dockerfile: infra/compose/Dockerfile.web
     ports:
-      - "3000:3000"
+      - "3002:3002" # 端口对齐实际
     depends_on:
       chat:
         condition: service_healthy
+
+volumes:
+  pgdata: {}

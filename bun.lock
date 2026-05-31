@@ -19,6 +19,7 @@
       "name": "@autix/user",
       "version": "0.1.0",
       "dependencies": {
+        "@autix/types": "workspace:*",
         "@heroui/react": "^3.0.2",
         "@heroui/styles": "^3.0.2",
         "@heroui/system": "^2.4.28",

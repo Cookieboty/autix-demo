@@ -15,7 +15,7 @@
  * 本模块不挂到现有 OrchestratorService / SSE 路由，既有业务数据流保持不变；
  * 仅作为可被脚本与测试调用的独立模块。
  */
-import { createDeepAgent, FilesystemBackend, type CompiledSubAgent, type FilesystemPermission } from 'deepagents';
+import { createDeepAgent, FilesystemBackend, type CompiledSubAgent, type FilesystemPermission, type DeepAgent } from 'deepagents';
 import { type BaseCheckpointSaver } from '@langchain/langgraph';
 import { RunnableLambda } from '@langchain/core/runnables';
 import { AIMessage, type BaseMessage } from '@langchain/core/messages';
@@ -108,7 +108,10 @@ const ORCHESTRATOR_SYSTEM_PROMPT = `你是一个跨工单需求分析协调者�
  * 外层：DeepAgent（write_todos + 虚拟文件系统 + task 委派）。
  * 内层：createAnalysisGraph 作为 requirement_analyst 子 Agent。
  */
-export function createDeepOrchestrator(options: DeepOrchestratorOptions) {
+// 显式标注返回类型：createDeepAgent 推断出的具体泛型类型引用了 langgraph/zod 的
+// 内部解析路径（isolated linker 下不可移植，触发 TS2742）。收窄到导出的 DeepAgent 接口，
+// 让声明可移植、typecheck 确定性通过（callers 用的 invoke/stream/streamEvents/getState 都在 ReactAgent 上）。
+export function createDeepOrchestrator(options: DeepOrchestratorOptions): DeepAgent {
   const { model, rootDir, checkpointer, permissions, interruptOn } = options;
 
   if (interruptOn && !checkpointer) {

@@ -1,12 +1,16 @@
+# infra/compose/compose.dev.yaml — 开发覆盖层：挂源码 + 跑 watch
+# 用法：docker compose -f compose.yaml -f compose.dev.yaml up
+# 注：容器内 watch 需带 devDependencies 的镜像（Dockerfile 的 deps/build 阶段）；
+#     日常开发更推荐宿主机直接 `bun run dev`（turbo），此覆盖层仅为容器化调试便利。
 services:
   chat:
-    command: bun run dev
+    command: sh -c "cd /app/services/chat && bun run dev"
     volumes:
-      - ../../services/chat/src:/app/src
+      - ../../services/chat/src:/app/services/chat/src # 路径对齐 monorepo 结构
 
   web:
-    command: bun run dev
+    command: sh -c "cd /app/clients/chat-web && bun run dev"
     volumes:
-      - ../../clients/web:/app
-      - /app/node_modules
-      - /app/.next
+      - ../../clients/chat-web:/app/clients/chat-web # 实际目录是 clients/chat-web（旧版错写成 clients/web）
+      - /app/clients/chat-web/node_modules
+      - /app/clients/chat-web/.next

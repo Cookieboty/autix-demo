@@ -78,16 +78,20 @@ autix/
 bun install
 ```
 
-### 2. 启动数据库（PostgreSQL + pgvector）
+### 2. 启动数据 / 评测服务
 
 ```bash
 cd infra/compose
-docker compose -f compose.dev.yaml up -d
+# 本地开发只需起数据与评测依赖（应用跑在宿主机的 bun run dev）
+docker compose up -d postgres qdrant ragas
 ```
 
-这会启动：
-- `autix_postgres` — PostgreSQL 16 + pgvector 扩展（端口 5432）
-- `autix_qdrant` — Qdrant 向量数据库（端口 6333，可选）
+这会启动（定义在 `infra/compose/compose.yaml`）：
+- `postgres` — PostgreSQL 16 + pgvector 扩展（端口 5432，库名 `autix_chat`）
+- `qdrant` — Qdrant 向量数据库（端口 6333，可选；chat 默认走 pgvector）
+- `ragas` — 本地 RAGAS 评测服务（端口 7860，第十七章用）
+
+> 整套容器化（含 chat / web 镜像 + 一次性迁移容器）见第十九章：`docker compose up` 会按 `postgres 健康 → migrate 跑完 → chat → web` 的顺序拉起。需先在 `infra/compose/.env` 配 `POSTGRES_PASSWORD` / `OPENAI_API_KEY`。
 
 ### 3. 配置环境变量
 

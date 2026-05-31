@@ -9,7 +9,9 @@
     "dev:chat-web": "turbo run dev --filter=@autix/chat-web",
     "dev:chat": "turbo run dev --filter=@autix/chat",
     "build": "turbo run build",
-    "typecheck": "turbo run typecheck"
+    "typecheck": "turbo run typecheck",
+    "test": "turbo run test",
+    "lint": "turbo run lint --filter=!@autix/user"
   },
   "devDependencies": {
     "@nestjs/testing": "^11.1.17",

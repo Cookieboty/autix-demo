@@ -6,7 +6,8 @@
     "dev": "nest start --watch",
     "build": "rm -rf dist tsconfig.tsbuildinfo && nest build",
     "start": "bun run dist/main.js",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "lint": "tsc --noEmit"
   },
   "dependencies": {
     "@autix/database": "workspace:*",

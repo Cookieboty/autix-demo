@@ -1,6 +1,6 @@
 // services/chat/test/ui-protocol.spec.ts
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect } from 'bun:test';
 import { aiUIResponseSchema, uiActionSchema, uiResponseSchema } from '../src/llm/ui-protocol/ui-schemas';
 import { UIActionParser } from '../src/conversation/ui-action.parser';
 

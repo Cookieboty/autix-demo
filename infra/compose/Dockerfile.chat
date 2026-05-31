@@ -1,16 +1,41 @@
-FROM oven/bun:1-alpine AS base
+# infra/compose/Dockerfile.chat — monorepo-aware 多阶段构建
+# 关键修正（对照旧版的五宗罪）：
+#   ① 用 bun.lock（不是 bun.lockb）  ② monorepo 结构、CMD 指向 services/chat/dist/main.js
+#   ③ 端口 4001（不是 3001）         ④ healthcheck 打第十六章的 /ready（真探 DB）
 
+# ── Stage 1: 安装依赖（利用 bun.lock 做缓存层；代码变了不必重装）──
+FROM oven/bun:1.3.11 AS deps
 WORKDIR /app
-COPY package.json ./
-COPY bun.lockb ./
+# frozen-lockfile 会校验整个 workspace，需复制 root + 全部成员的 manifest
+COPY package.json bun.lock bunfig.toml ./
+COPY packages/types/package.json ./packages/types/
+COPY packages/contracts/package.json ./packages/contracts/
+COPY packages/database/package.json ./packages/database/
+COPY services/chat/package.json ./services/chat/
+COPY services/user-system/package.json ./services/user-system/
+COPY clients/chat-web/package.json ./clients/chat-web/
+COPY clients/admin-web/package.json ./clients/admin-web/
 RUN bun install --frozen-lockfile
 
+# ── Stage 2: 构建（turbo 按 filter 只构建 chat 及其依赖包）──
+FROM deps AS build
 COPY . .
-RUN bun run build
+RUN bun run build --filter=@autix/chat
+RUN cd services/chat && bunx prisma generate
 
-FROM base AS runner
+# ── Stage 3: 运行时（只带产物；isolated linker 的相对符号链接靠保留目录结构来解析）──
+FROM oven/bun:1.3.11-slim AS runtime
 WORKDIR /app
 ENV NODE_ENV=production
-COPY --from=base /app/dist ./dist
-EXPOSE 3001
-CMD ["bun", "run", "dist/main.js"]
+# services/chat/node_modules/@autix/* 是相对软链 → packages/*；其余依赖软链 → node_modules/.bun 中央仓
+COPY --from=build /app/node_modules ./node_modules
+COPY --from=build /app/packages ./packages
+COPY --from=build /app/services/chat/node_modules ./services/chat/node_modules
+COPY --from=build /app/services/chat/dist ./services/chat/dist
+COPY --from=build /app/services/chat/config ./services/chat/config
+COPY --from=build /app/services/chat/prisma ./services/chat/prisma
+EXPOSE 4001
+# 健康检查指向第十六章新增的 /ready（真探 DB），不是只回 200 的 /health
+HEALTHCHECK --interval=30s --timeout=5s --retries=3 \
+  CMD bun -e "fetch('http://localhost:4001/ready').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+CMD ["bun", "run", "services/chat/dist/main.js"]

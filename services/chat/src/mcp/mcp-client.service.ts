@@ -58,7 +58,9 @@ export class MCPClientService {
     if (!this.connected) {
       throw new Error(`MCPClient not connected. Call connect() first.`);
     }
-    return this.client.callTool({ name, arguments: args });
+    // MCP SDK 的 callTool 返回类型是个并集（含已废弃的 { toolResult } 分支），
+    // 运行时实际返回 CallToolResult；这里做结构化断言收窄到我们的契约类型。
+    return this.client.callTool({ name, arguments: args }) as Promise<CallToolResult>;
   }
 
   async close(): Promise<void> {

@@ -1,0 +1,74 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    # 每天 02:00 UTC（北京时间 10:00）跑一次 nightly eval
+    - cron: "0 18 * * *"
+  workflow_dispatch:
+
+jobs:
+  # ── 每次 PR / push 跑：便宜、确定、不花钱的门禁 ──
+  ci:
+    if: github.event_name == 'push' || github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    services:
+      # 仅用于 migrate deploy 验证 migration 文件（Layer 1 测试全 mock、不连真库）
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: autix_chat
+        ports:
+          - "5432:5432"
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/autix_chat
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.11
+      - run: bun install --frozen-lockfile
+      # 顺序：便宜的先跑、最容易挂的先挂、失败早退
+      - name: Typecheck
+        run: bun run typecheck
+      - name: Lint
+        run: bun run lint
+      - name: Migrate (validate migration files on a clean DB)
+        run: bunx prisma migrate deploy
+        working-directory: services/chat
+      - name: Test (Layer 2 LLM 用例无 key/flag 自动跳过)
+        run: bun run test
+      - name: Build
+        run: bun run build
+
+  # ── nightly / 手动：贵、有波动、烧 token 的质量门禁，不卡每个 PR ──
+  eval:
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    env:
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      OPENAI_BASE_URL: ${{ secrets.OPENAI_BASE_URL }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.11
+      - run: bun install --frozen-lockfile
+      # run-eval.ts 退出码非 0 → job 失败（第十七章的质量门禁）
+      - name: Run eval gate
+        run: bun run scripts/run-eval.ts
+        working-directory: services/chat
+      - name: Upload eval report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: eval-report
+          path: services/chat/eval/reports/
