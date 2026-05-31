@@ -4,13 +4,16 @@
   "workspaces": ["clients/*", "services/*", "packages/*"],
   "packageManager": "bun@1.3.11",
   "scripts": {
-    "clean:ports": "for port in 3002 4001; do lsof -ti :$port | xargs kill -9 2>/dev/null; done; echo 'Ports cleaned'",
-    "dev": "bun run clean:ports && turbo run dev --parallel --filter=@autix/chat --filter=@autix/chat-web",
+    "clean:ports": "for port in 3001 3002 4001 4002; do lsof -ti :$port | xargs kill -9 2>/dev/null; done; echo 'Ports cleaned'",
+    "dev": "bun run clean:ports && turbo run dev",
     "dev:chat-web": "turbo run dev --filter=@autix/chat-web",
     "dev:chat": "turbo run dev --filter=@autix/chat",
+    "dev:user": "turbo run dev --filter=@autix/user-system",
+    "dev:admin": "turbo run dev --filter=@autix/user",
     "build": "turbo run build",
     "typecheck": "turbo run typecheck",
-    "lint": "turbo run lint"
+    "test": "turbo run test",
+    "lint": "turbo run lint --filter=!@autix/user"
   },
   "devDependencies": {
     "turbo": "^2.8.20",

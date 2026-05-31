@@ -1,0 +1,271 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserStatus {
+  ACTIVE
+  DISABLED
+  LOCKED
+  PENDING
+}
+
+enum PermissionAction {
+  CREATE
+  READ
+  UPDATE
+  DELETE
+  EXPORT
+  IMPORT
+}
+
+enum PermissionType {
+  FRONTEND // 前端权限：控制按钮、组件显示
+  BACKEND // 后端权限：控制API访问
+}
+
+enum SystemStatus {
+  ACTIVE
+  DISABLED
+}
+
+enum ClientStatus {
+  ACTIVE
+  DISABLED
+}
+
+enum RegistrationStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model System {
+  id          String        @id @default(cuid())
+  name        String
+  code        String        @unique
+  description String?
+  status      SystemStatus  @default(ACTIVE)
+  sort        Int           @default(0)
+  menus       Menu[]
+  roles       Role[]
+  clients     OAuthClient[]
+  registrations     SystemRegistration[]
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  @@map("systems")
+}
+
+model User {
+  id           String        @id @default(cuid())
+  username     String        @unique
+  email        String        @unique
+  password     String?
+  realName     String?
+  avatar       String?
+  phone        String?
+  status       UserStatus    @default(ACTIVE)
+  isSuperAdmin Boolean       @default(false)
+  roles        UserRole[]
+  sessions     UserSession[]
+  accounts     UserAccount[]
+  registrations     SystemRegistration[] @relation("UserRegistrations")
+  processedRegs     SystemRegistration[] @relation("ProcessedRegistrations")
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  lastLoginAt  DateTime?
+
+  @@map("users")
+}
+
+model Role {
+  id          String           @id @default(cuid())
+  systemId    String
+  system      System           @relation(fields: [systemId], references: [id], onDelete: Cascade)
+  name        String
+  code        String
+  description String?
+  sort        Int              @default(0)
+  users       UserRole[]
+  permissions RolePermission[]
+  menus       RoleMenu[]
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  @@unique([systemId, code])
+  @@map("roles")
+}
+
+model UserRole {
+  id        String   @id @default(cuid())
+  userId    String
+  roleId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role      Role     @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([userId, roleId])
+  @@map("user_roles")
+}
+
+model Permission {
+  id          String           @id @default(cuid())
+  menuId      String
+  menu        Menu             @relation(fields: [menuId], references: [id], onDelete: Cascade)
+  name        String
+  code        String           @unique
+  type        PermissionType
+  action      PermissionAction
+  description String?
+  roles       RolePermission[]
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  @@map("permissions")
+}
+
+model RolePermission {
+  id           String     @id @default(cuid())
+  roleId       String
+  permissionId String
+  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+  createdAt    DateTime   @default(now())
+
+  @@unique([roleId, permissionId])
+  @@map("role_permissions")
+}
+
+model Menu {
+  id          String       @id @default(cuid())
+  systemId    String
+  system      System       @relation(fields: [systemId], references: [id], onDelete: Cascade)
+  parentId    String?
+  parent      Menu?        @relation("MenuTree", fields: [parentId], references: [id])
+  children    Menu[]       @relation("MenuTree")
+  name        String
+  code        String
+  path        String?
+  icon        String?
+  sort        Int          @default(0)
+  visible     Boolean      @default(true)
+  permissions Permission[]
+  roles       RoleMenu[]
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  @@unique([systemId, code])
+  @@map("menus")
+}
+
+model RoleMenu {
+  id        String   @id @default(cuid())
+  roleId    String
+  menuId    String
+  role      Role     @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  menu      Menu     @relation(fields: [menuId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([roleId, menuId])
+  @@map("role_menus")
+}
+
+model UserSession {
+  id              String   @id @default(cuid())
+  userId          String
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  refreshToken    String   @unique
+  accessToken     String?
+  clientId        String?
+  scopes          String[] @default([])
+  currentSystemId String?
+  expiresAt       DateTime
+  isActive        Boolean  @default(true)
+  ip              String?
+  userAgent       String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([userId])
+  @@index([refreshToken])
+  @@map("user_sessions")
+}
+
+model UserAccount {
+  id                String    @id @default(cuid())
+  userId            String
+  user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  provider          String
+  providerAccountId String
+  accessToken       String?   @db.Text
+  refreshToken      String?   @db.Text
+  expiresAt         DateTime?
+  tokenType         String?
+  scope             String?
+  idToken           String?   @db.Text
+  sessionState      String?
+  metadata          Json?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  @@unique([provider, providerAccountId])
+  @@index([userId])
+  @@map("user_accounts")
+}
+
+model OAuthClient {
+  id           String       @id @default(cuid())
+  clientId     String       @unique
+  clientSecret String
+  name         String
+  description  String?
+  redirectUris String[]
+  grantTypes   String[]
+  scopes       String[]
+  systemId     String?
+  system       System?      @relation(fields: [systemId], references: [id])
+  status       ClientStatus @default(ACTIVE)
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  @@map("oauth_clients")
+}
+
+model OAuthAuthorizationCode {
+  id          String   @id @default(cuid())
+  code        String   @unique
+  clientId    String
+  userId      String
+  redirectUri String
+  scopes      String[]
+  expiresAt   DateTime
+  used        Boolean  @default(false)
+  createdAt   DateTime @default(now())
+
+  @@index([code])
+  @@index([clientId])
+  @@map("oauth_authorization_codes")
+}
+
+model SystemRegistration {
+  id            String             @id @default(cuid())
+  userId        String
+  systemId      String
+  status        RegistrationStatus @default(PENDING)
+  note          String?
+  createdAt     DateTime           @default(now())
+  processedAt   DateTime?
+  processedById String?
+
+  user          User    @relation("UserRegistrations", fields: [userId], references: [id], onDelete: Cascade)
+  system        System  @relation(fields: [systemId], references: [id])
+  processedBy   User?   @relation("ProcessedRegistrations", fields: [processedById], references: [id])
+
+  @@unique([userId, systemId])
+  @@map("system_registrations")
+}
