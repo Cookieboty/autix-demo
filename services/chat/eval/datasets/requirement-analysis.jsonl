@@ -1,0 +1,14 @@
+{"id":"req-login-001","input":"加个企业微信扫码登录功能","expectedIntent":"analyze","relevantChunkIds":["c-auth-1","c-auth-3"],"tags":["auth","typical"]}
+{"id":"req-login-002","input":"企业微信扫码登录失败时要有账号密码兜底入口","expectedIntent":"analyze","relevantChunkIds":["c-auth-1","c-auth-2"],"tags":["auth","typical"]}
+{"id":"req-export-001","input":"订单导出支持百万行异步下载，完成后邮件通知","expectedIntent":"analyze","relevantChunkIds":["c-export-2"],"tags":["performance","typical"]}
+{"id":"req-export-002","input":"小批量订单导出能不能点一下直接下载","expectedIntent":"analyze","relevantChunkIds":["c-export-1"],"tags":["performance","typical"]}
+{"id":"req-compliance-001","input":"用户数据要符合GDPR删除权，支持彻底删除个人信息","expectedIntent":"analyze","relevantChunkIds":["c-gdpr-1"],"tags":["compliance","typical"]}
+{"id":"req-perf-001","input":"列表接口太慢了，需求是把响应时间降下来","expectedIntent":"analyze","relevantChunkIds":["c-perf-1"],"tags":["performance","typical"]}
+{"id":"req-arch-001","input":"把整个订单系统迁移到事件驱动架构","expectedIntent":"analyze","relevantChunkIds":["c-arch-1"],"tags":["architecture","edge"]}
+{"id":"req-clarify-001","input":"做个更好用的系统","expectedIntent":"analyze","tags":["needs-clarification","edge"]}
+{"id":"req-clarify-002","input":"优化一下","expectedIntent":"analyze","tags":["needs-clarification","edge"]}
+{"id":"req-mixed-001","input":"加企业微信登录，同时订单导出也要支持百万行异步","expectedIntent":"analyze","relevantChunkIds":["c-auth-1","c-export-2"],"tags":["auth","performance","edge"]}
+{"id":"query-001","input":"REQ-001 现在什么状态","expectedIntent":"query","tags":["query"]}
+{"id":"query-002","input":"我上次提的那个登录需求进展到哪了","expectedIntent":"query","tags":["query"]}
+{"id":"chat-001","input":"你好","expectedIntent":"chat","tags":["smalltalk"]}
+{"id":"chat-002","input":"谢谢，你做得不错","expectedIntent":"chat","tags":["smalltalk"]}

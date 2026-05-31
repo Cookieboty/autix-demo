@@ -1,0 +1,22 @@
+# 需求分析报告评分 rubric（版本化，在线 Critic 与离线 judge 共享标准来源）
+version: 1
+dimensions:
+  - id: completeness
+    name: 完整性
+    weight: 0.3
+    desc: 是否覆盖功能分解、用户故事、验收标准、风险、排期依赖
+  - id: professionalism
+    name: 专业性
+    weight: 0.25
+    desc: 术语准确、分析有深度、无明显事实错误
+  - id: actionability
+    name: 可执行性
+    weight: 0.25
+    desc: 结论是否具体可落地，而非空泛套话
+  - id: consistency
+    name: 一致性
+    weight: 0.2
+    desc: 各章节结论不自相矛盾，冲突有解决方案
+gate:
+  minScore: 75        # 加权总分阈值，低于此判定 fail
+  minPerDimension: 60 # 单维度下限，任一维度低于此也 fail

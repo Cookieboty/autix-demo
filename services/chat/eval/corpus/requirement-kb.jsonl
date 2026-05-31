@@ -1,0 +1,9 @@
+{"chunkId":"c-auth-1","documentId":"doc-auth","documentName":"企业微信登录接入.md","content":"企业微信扫码登录接入说明：前端展示企业微信二维码，用户用企业微信 App 扫码授权后，企业微信回调我方服务并带上临时 code。后端用 code 调用企业微信接口换取 userid，完成登录。需要在企业微信管理后台配置可信域名与回调地址。"}
+{"chunkId":"c-auth-2","documentId":"doc-auth","documentName":"企业微信登录接入.md","content":"账号密码登录的兜底流程：当用户无法使用企业微信扫码时，提供手机号加验证码或账号密码的备用登录入口。该入口与扫码登录共用同一套会话与权限体系。"}
+{"chunkId":"c-auth-3","documentId":"doc-auth","documentName":"企业微信登录接入.md","content":"企业微信登录的回调安全：回调时必须校验 state 参数防 CSRF，code 只能使用一次且有时效。首次登录需要把企业微信 userid 与系统内用户做绑定，已绑定用户直接建立会话并下发登录态 token。"}
+{"chunkId":"c-export-1","documentId":"doc-export","documentName":"订单导出能力.md","content":"小数据量订单导出：当导出行数较少（如万行以内）时，可走同步导出，请求内直接生成 Excel/CSV 并返回下载链接，用户无需等待后台任务。"}
+{"chunkId":"c-export-2","documentId":"doc-export","documentName":"订单导出能力.md","content":"大数据量订单异步导出：当导出量达到百万行级别时，必须走异步任务。提交导出请求后入队列，后台分批查询并流式写入对象存储，生成文件后通过邮件或站内信通知用户下载，避免请求超时与内存溢出。"}
+{"chunkId":"c-gdpr-1","documentId":"doc-gdpr","documentName":"数据合规.md","content":"GDPR 删除权（被遗忘权）实现要点：用户提出删除请求后，需要在合理期限内删除其个人数据，包括主库记录、备份、缓存、日志与第三方副本，并保留可审计的删除凭证。对因法律义务必须保留的数据要做匿名化处理。"}
+{"chunkId":"c-perf-1","documentId":"doc-perf","documentName":"性能优化.md","content":"接口性能优化通用手段：为高频查询字段建立索引、对大结果集分页、用缓存挡住热点读、把耗时操作异步化。优化前先用可观测性定位真正的瓶颈，避免凭直觉过度优化。"}
+{"chunkId":"c-arch-1","documentId":"doc-arch","documentName":"架构演进.md","content":"事件驱动架构迁移：把强耦合的同步调用改造成基于消息队列的事件发布订阅，提升系统解耦与可扩展性。迁移是高风险大工程，需要分阶段灰度并保证事件的幂等与顺序。"}
+{"chunkId":"c-misc-1","documentId":"doc-misc","documentName":"产品概览.md","content":"本系统是一个面向企业的需求管理与协作平台，支持需求录入、智能分析、任务跟踪与知识库检索。"}

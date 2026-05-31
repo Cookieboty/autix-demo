@@ -178,6 +178,24 @@ model agent_model_defaults {
   @@index([agentName])
 }
 
+model eval_runs {
+  id               String   @id @default(cuid())
+  createdAt        DateTime @default(now())
+  gitSha           String?  @db.VarChar(64)
+  judgeModel       String   @db.VarChar(100)
+  noLlm            Boolean  @default(false)
+  totalCases       Int
+  passed           Boolean
+  avgRecall        Float?
+  avgPrecision     Float?
+  avgNdcg          Float?
+  avgJudgeScore    Float?
+  avgIntentCorrect Float?
+  report           Json
+
+  @@index([createdAt])
+}
+
 enum ArtifactType {
   MARKDOWN
   CODE

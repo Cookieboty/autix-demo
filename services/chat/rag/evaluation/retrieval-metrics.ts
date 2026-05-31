@@ -30,6 +30,25 @@ export function recallAtK(
   return hit / relevantIds.length;
 }
 
+/**
+ * Precision@K：检索回来的前 K 个里有多少是真相关的（第十七章 17.3.2）。
+ * 与 Recall 的差异在分母：Recall 除以「相关文档总数」（漏没漏），
+ * Precision 除以「实际返回数」（准不准）。
+ */
+export function precisionAtK(
+  retrievedIds: string[],
+  relevantIds: string[],
+  k: number,
+): number {
+  if (k <= 0) return 0;
+  const top = retrievedIds.slice(0, k);
+  if (top.length === 0) return 0;
+  const rel = toSet(relevantIds);
+  let hit = 0;
+  for (const id of top) if (rel.has(id)) hit += 1;
+  return hit / top.length;
+}
+
 export function mrr(
   rankedListsPerQuery: string[][],
   relevantPerQuery: string[][],
