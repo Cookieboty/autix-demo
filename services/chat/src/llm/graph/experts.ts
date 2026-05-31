@@ -11,6 +11,7 @@ import { z } from 'zod';
 import {
   RequirementAnalysisState,
   wrapNodeUsage,
+  buildRetrievedContextBlock,
   type GraphObservability,
 } from './requirement-analysis-graph';
 import { searchRequirementTool, checkConflictsTool } from '../tools/analysis-tools';
@@ -52,9 +53,11 @@ export function createExpertSubGraph(opts: ExpertOptions) {
   ): Promise<Partial<typeof RequirementAnalysisState.State>> {
     try {
       const modelWithTools = model.bindTools?.(tools) || model;
+      // 20.3：专家也注入检索上下文，让专家分析消费知识库内容（修「检索了但不影响」）
+      const contextBlock = buildRetrievedContextBlock(state.retrievedContext);
       const response = await wrapNodeUsage(obs, 'analysisStep', opts.name, () =>
         modelWithTools.invoke([
-        { role: 'system', content: systemPrompt },
+        { role: 'system', content: systemPrompt + contextBlock },
         {
           role: 'user',
           content: `已澄清的需求：${JSON.stringify(state.clarified)}\n\n原始输入：${state.input}`,

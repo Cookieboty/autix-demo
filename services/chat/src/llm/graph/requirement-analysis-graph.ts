@@ -21,7 +21,6 @@ import {
   createExtractAgent,
   createClarifyAgent,
   createRiskAgent,
-  createSummaryAgent,
 } from '../agents/sub-agents';
 import { createAnalysisSupervisorSubGraph } from './experts';
 import { withTokenUsage } from '../cost/with-token-usage';
@@ -297,6 +296,17 @@ async function clarifyNode(
  * 创建 Critic-Refine 子图：用于综合报告生成与迭代优化
  * 支持 actor → critic → refine 的闭环修订流程
  */
+/**
+ * 第二十章 20.3：把 RAG 检索内容拼成一段可注入 prompt 的「参考资料」。
+ * 修复历史 bug——检索结果进了 state.retrievedContext，但写报告/专家的 prompt 从不读它，
+ * 导致「检索了但不影响报告」。空或占位（无相关参考文档）时返回空串，不污染 prompt。
+ */
+export function buildRetrievedContextBlock(retrievedContext?: string): string {
+  const ctx = (retrievedContext ?? '').trim();
+  if (!ctx || ctx === '无相关参考文档') return '';
+  return `\n\n## 参考资料（来自知识库检索）\n${ctx}\n请优先依据以上资料作答，资料未覆盖处再用通用知识，不要编造资料中没有的事实。`;
+}
+
 function createSummarySubGraph(model: BaseChatModel, obs?: GraphObservability) {
   /**
    * Actor 节点：生成初版报告
@@ -304,6 +314,8 @@ function createSummarySubGraph(model: BaseChatModel, obs?: GraphObservability) {
   async function actorNode(
     state: typeof RequirementAnalysisState.State
   ): Promise<Partial<typeof RequirementAnalysisState.State>> {
+    // 20.3：注入检索上下文，让报告真正消费知识库内容（而非只把 metadata 返给前端）
+    const contextBlock = buildRetrievedContextBlock(state.retrievedContext);
     const response = await wrapNodeUsage(obs, 'summaryStep.actor', 'summary', () =>
       model.invoke([
       {
@@ -323,7 +335,7 @@ function createSummarySubGraph(model: BaseChatModel, obs?: GraphObservability) {
 - 关键信息用粗体或列表
 - 排期必须标明依赖关系
 - 冲突分析必须包含解决方案
-- 整体报告长度不少于 600 字`,
+- 整体报告长度不少于 600 字${contextBlock}`,
       },
       {
         role: 'user',
@@ -597,29 +609,6 @@ async function riskNode(
   });
   
   return { riskResult };
-}
-
-/**
- * 节点 5：综合报告
- * 基于所有分析结果生成最终的需求分析报告
- */
-async function summaryNode(
-  state: typeof RequirementAnalysisState.State,
-  config: { model: BaseChatModel },
-): Promise<Partial<typeof RequirementAnalysisState.State>> {
-  const { model } = config;
-  const summaryAgent = createSummaryAgent(model);
-  
-  const extractResultStr = JSON.stringify(state.extracted);
-  const summary = await summaryAgent.invoke({
-    input: state.input,
-    extractResult: extractResultStr,
-    analysisResult: state.analysisResult,
-    riskResult: state.riskResult,
-    retrievedContext: state.retrievedContext || '无相关参考文档',
-  });
-  
-  return { summary };
 }
 
 /**
