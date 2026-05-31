@@ -2,11 +2,11 @@ services:
   chat:
     command: bun run dev
     volumes:
-      - ../../services/chat/src:/app/src
+      - ../../services/chat/src:/app/services/chat/src
+      - ../../packages/contracts:/app/packages/contracts
 
-  web:
+  chat-web:
     command: bun run dev
     volumes:
-      - ../../clients/web:/app
-      - /app/node_modules
-      - /app/.next
+      - ../../clients/chat-web:/app/clients/chat-web
+      - ../../packages/contracts:/app/packages/contracts

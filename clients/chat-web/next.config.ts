@@ -1,14 +1,13 @@
+import path from "node:path";
 import type { NextConfig } from "next";
 
-const CHAT_API = process.env.NEXT_PUBLIC_CHAT_API_URL || 'http://localhost:4001';
-
 const nextConfig: NextConfig = {
-  rewrites: async () => [
-    {
-      source: '/api/sse/:path*',
-      destination: `${CHAT_API}/api/sse/:path*`,
-    },
-  ],
+  transpilePackages: ["@autix/contracts"],
+  output: "standalone",
+  outputFileTracingRoot: path.join(__dirname, "../../"),
+  env: {
+    NEXT_PUBLIC_API_BASE_URL: process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:4001",
+  },
 };
 
 export default nextConfig;
