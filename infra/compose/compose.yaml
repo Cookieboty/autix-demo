@@ -5,6 +5,12 @@ services:
       dockerfile: infra/compose/Dockerfile.chat
     ports:
       - "4001:4001"
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - OPENAI_BASE_URL=${OPENAI_BASE_URL}
+      - EMBEDDING_API_KEY=${EMBEDDING_API_KEY}
+      - VECTOR_DB_URL=${VECTOR_DB_URL}
+      - VECTOR_DB_API_KEY=${VECTOR_DB_API_KEY}
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:4001/health"]
       interval: 10s

@@ -1,0 +1,17 @@
+llm:
+  provider: openai
+  model: gpt-5.4
+  temperature: 0
+  maxTokens: 800
+
+retrieval:
+  enabled: true
+  topK: 3
+
+tools:
+  enableConstraintCheck: true
+  enableEntityLookup: true
+
+features:
+  enableStructuredOutput: true
+  enableStreaming: true
