@@ -7,6 +7,10 @@ import {
 } from '@nestjs/common';
 import { Response } from 'express';
 import { ApiResponse, ErrorCode } from '@autix/types';
+import { getTraceId } from '../observability/trace-context';
+import { createLogger } from '../observability/logger';
+
+const errorLog = createLogger('exception');
 
 @Catch()
 export class AllExceptionsFilter implements ExceptionFilter {
@@ -17,7 +21,6 @@ export class AllExceptionsFilter implements ExceptionFilter {
     let status = HttpStatus.INTERNAL_SERVER_ERROR;
     let code: ErrorCode = 'INTERNAL_ERROR';
     let message = '服务器内部错误';
-    console.error('[AllExceptionsFilter]', exception);
     if (exception instanceof HttpException) {
       status = exception.getStatus();
       const exResponse = exception.getResponse() as any;
@@ -37,7 +40,12 @@ export class AllExceptionsFilter implements ExceptionFilter {
       }
     }
 
-    const traceId = crypto.randomUUID();
+    // 16.2：复用请求级 traceId，并补一条结构化 error 日志（不再静默吞掉异常，A12）
+    const traceId = getTraceId();
+    errorLog.error(
+      { code, status, err: String(exception).slice(0, 300) },
+      'unhandled_exception',
+    );
     const body: ApiResponse<null> = {
       success: false,
       code,

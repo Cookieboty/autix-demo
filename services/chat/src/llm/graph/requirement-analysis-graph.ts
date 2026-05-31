@@ -24,6 +24,56 @@ import {
   createSummaryAgent,
 } from '../agents/sub-agents';
 import { createAnalysisSupervisorSubGraph } from './experts';
+import { withTokenUsage } from '../cost/with-token-usage';
+import type { TokenUsageService } from '../cost/token-usage.service';
+import { createLogger } from '../../observability/logger';
+
+// 16.8.1：用正规 logger 替代写死端口的 debug fetch 残留。
+// 注意 16.8.2 PII 纪律：只记长度/形状，不记用户输入原文。
+const log = createLogger('analysis-graph');
+
+/**
+ * 16.4 可观测性接线（opt-in）：节点级 Token 计量上下文。
+ * 默认不传 = 行为完全不变（裸调用）；传入 usageService 后，被包裹的真实
+ * model.invoke 会把 token/latency 写入 token_usages 表。
+ */
+export interface GraphObservability {
+  usageService?: TokenUsageService | null;
+  conversationId?: string;
+  // 模型名，用于 token 定价（在 createAnalysisGraph 内由 model 推导一次）
+  modelName: string;
+}
+
+/**
+ * opt-in 包装：有 usageService 就用 withTokenUsage 采集并落库，没有就裸跑。
+ * 提取为纯函数以便确定性单测（Layer 1）。
+ */
+export function wrapNodeUsage<T>(
+  obs: GraphObservability | undefined,
+  nodeName: string,
+  agentName: string,
+  fn: () => Promise<T>,
+): Promise<T> {
+  if (!obs?.usageService) return fn();
+  return withTokenUsage(
+    {
+      graphName: 'requirement-analysis',
+      nodeName,
+      agentName,
+      modelName: obs.modelName,
+      conversationId: obs.conversationId,
+    },
+    obs.usageService,
+    fn,
+  );
+}
+
+/** 从 LangChain 模型实例推导模型名（用于 token 定价）。 */
+function resolveModelName(model: BaseChatModel): string {
+  return (
+    (model as any).modelName ?? (model as any).model ?? 'unknown'
+  );
+}
 
 /**
  * 意图分类的 Zod Schema
@@ -150,17 +200,13 @@ async function extractNode(
 ): Promise<Partial<typeof RequirementAnalysisState.State>> {
   const { model } = config;
   
-  // #region agent log
-  fetch('http://127.0.0.1:7439/ingest/d2836ca5-d253-4abc-ae4c-b65a3a5711c8',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'28b230'},body:JSON.stringify({sessionId:'28b230',location:'requirement-analysis-graph.ts:133',message:'extractNode 开始',data:{input:state.input.substring(0,50)},timestamp:Date.now(),hypothesisId:'F'})}).catch(()=>{});
-  // #endregion
+  log.debug({ inputLen: state.input.length }, 'extractNode_start');
   
   const extractAgent = createExtractAgent(model);
   
   const extractRaw = await extractAgent.invoke({ input: state.input });
   
-  // #region agent log
-  fetch('http://127.0.0.1:7439/ingest/d2836ca5-d253-4abc-ae4c-b65a3a5711c8',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'28b230'},body:JSON.stringify({sessionId:'28b230',location:'requirement-analysis-graph.ts:143',message:'extractNode AI 完成',data:{rawLength:extractRaw.length},timestamp:Date.now(),hypothesisId:'F'})}).catch(()=>{});
-  // #endregion
+  log.debug({ rawLength: extractRaw.length }, 'extractNode_ai_done');
   
   // 清洗 LLM 输出：移除 markdown 代码块和文本前缀
   let cleanExtract = extractRaw.trim();
@@ -194,9 +240,7 @@ async function extractNode(
     };
   }
   
-  // #region agent log
-  fetch('http://127.0.0.1:7439/ingest/d2836ca5-d253-4abc-ae4c-b65a3a5711c8',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'28b230'},body:JSON.stringify({sessionId:'28b230',location:'requirement-analysis-graph.ts:163',message:'extractNode 完成',data:{hasExtracted:!!extracted},timestamp:Date.now(),hypothesisId:'F'})}).catch(()=>{});
-  // #endregion
+  log.debug({ hasExtracted: !!extracted }, 'extractNode_done');
   
   return { extracted };
 }
@@ -253,14 +297,15 @@ async function clarifyNode(
  * 创建 Critic-Refine 子图：用于综合报告生成与迭代优化
  * 支持 actor → critic → refine 的闭环修订流程
  */
-function createSummarySubGraph(model: BaseChatModel) {
+function createSummarySubGraph(model: BaseChatModel, obs?: GraphObservability) {
   /**
    * Actor 节点：生成初版报告
    */
   async function actorNode(
     state: typeof RequirementAnalysisState.State
   ): Promise<Partial<typeof RequirementAnalysisState.State>> {
-    const response = await model.invoke([
+    const response = await wrapNodeUsage(obs, 'summaryStep.actor', 'summary', () =>
+      model.invoke([
       {
         role: 'system',
         content: `你是资深需求分析师。根据分析和风险评估生成综合报告。
@@ -292,7 +337,8 @@ function createSummarySubGraph(model: BaseChatModel) {
 
 请生成完整的综合报告，确保包含所有必需章节且标题格式正确。`,
       },
-    ]);
+    ]),
+    );
     
     console.log('[Critic子图] actorNode 完成');
     return { summary: response.content as string };
@@ -304,7 +350,8 @@ function createSummarySubGraph(model: BaseChatModel) {
   async function criticNode(
     state: typeof RequirementAnalysisState.State
   ): Promise<Partial<typeof RequirementAnalysisState.State>> {
-    const response = await model.invoke([
+    const response = await wrapNodeUsage(obs, 'summaryStep.critic', 'summary', () =>
+      model.invoke([
       {
         role: 'system',
         content: `你是资深需求评审专家。按以下标准检查综合报告：
@@ -340,7 +387,8 @@ ${state.summary}
 
 请按标准评审。`,
       },
-    ]);
+    ]),
+    );
     
     // 清洗 JSON 输出（类似 clarifyNode 的处理方式）
     let cleanJson = (response.content as string).trim();
@@ -384,7 +432,8 @@ ${state.summary}
   async function refineNode(
     state: typeof RequirementAnalysisState.State
   ): Promise<Partial<typeof RequirementAnalysisState.State>> {
-    const response = await model.invoke([
+    const response = await wrapNodeUsage(obs, 'summaryStep.refine', 'summary', () =>
+      model.invoke([
       {
         role: 'system',
         content: `你是需求分析师。根据评审意见修订报告。
@@ -410,7 +459,8 @@ ${state.critique}
 
 请根据评审意见修订报告，只改有问题的地方。`,
       },
-    ]);
+    ]),
+    );
     
     console.log(`[Critic子图] refineNode: reviseCount=${state.reviseCount + 1}`);
     
@@ -578,11 +628,12 @@ async function summaryNode(
  */
 async function queryHandlerNode(
   state: typeof RequirementAnalysisState.State,
-  config: { model: BaseChatModel },
+  config: { model: BaseChatModel; obs?: GraphObservability },
 ): Promise<Partial<typeof RequirementAnalysisState.State>> {
-  const { model } = config;
+  const { model, obs } = config;
   
-  const response = await model.invoke([
+  const response = await wrapNodeUsage(obs, 'queryHandler', 'query', () =>
+    model.invoke([
     {
       role: 'system',
       content: '你是一个需求查询助手。根据用户的查询请求，提供需求的状态、进度等信息。',
@@ -591,7 +642,8 @@ async function queryHandlerNode(
       role: 'user',
       content: state.input,
     },
-  ]);
+  ]),
+  );
   
   return { 
     queryResponse: response.content as string,
@@ -644,6 +696,8 @@ function routeAfterClarify(
  * @param model LangChain 模型实例
  * @param options.checkpointer    可选 checkpointer，传入后图状态会持久化到该 saver
  * @param options.interruptBefore 可选中断节点列表，进入该节点前暂停（HITL 用）
+ * @param options.usageService    可选 Token 计量服务（16.4 opt-in）；传入后真实节点调用会写 token_usages
+ * @param options.conversationId  可选会话 ID，用于把成本归属到具体会话
  * @returns 编译后的 StateGraph
  */
 export function createAnalysisGraph(
@@ -651,13 +705,24 @@ export function createAnalysisGraph(
   options?: {
     checkpointer?: BaseCheckpointSaver;
     interruptBefore?: string[];
+    usageService?: TokenUsageService | null;
+    conversationId?: string;
   },
 ) {
+  // 16.4 opt-in：仅当传入 usageService 时才采集 token；modelName 推导一次复用
+  const obs: GraphObservability | undefined = options?.usageService
+    ? {
+        usageService: options.usageService,
+        conversationId: options.conversationId,
+        modelName: resolveModelName(model),
+      }
+    : undefined;
+
   // 9.2: Supervisor + 4 专家并行子图
-  const analysisSubGraph = createAnalysisSupervisorSubGraph(model);
+  const analysisSubGraph = createAnalysisSupervisorSubGraph(model, obs);
   
   // 创建 Critic-Refine 子图用于综合报告生成（8.6）
-  const summarySubGraph = createSummarySubGraph(model);
+  const summarySubGraph = createSummarySubGraph(model, obs);
   
   const graph = new StateGraph(RequirementAnalysisState)
     // 9.4: Triage 替代原 classifier，简单问题在 triage 内直接回答
@@ -673,7 +738,7 @@ export function createAnalysisGraph(
     .addNode('summaryStep', summarySubGraph)
 
     // 查询交给 queryHandler；闲聊由 triage 直接回答（路由到 END）
-    .addNode('queryHandler', (state) => queryHandlerNode(state, { model }))
+    .addNode('queryHandler', (state) => queryHandlerNode(state, { model, obs }))
 
     .addEdge(START, 'triage')
 
@@ -748,9 +813,7 @@ export async function runAnalysisGraph(
 ): Promise<RunAnalysisGraphOutput> {
   const { input: userInput, retrievedContext, model } = input;
   
-  // #region agent log
-  fetch('http://127.0.0.1:7439/ingest/d2836ca5-d253-4abc-ae4c-b65a3a5711c8',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'28b230'},body:JSON.stringify({sessionId:'28b230',location:'requirement-analysis-graph.ts:397',message:'runAnalysisGraph 开始',data:{input:userInput.substring(0,100)},timestamp:Date.now(),hypothesisId:'B'})}).catch(()=>{});
-  // #endregion
+  log.debug({ inputLen: userInput.length }, 'runAnalysisGraph_start');
   
   // 创建图实例
   const graph = createAnalysisGraph(model);
@@ -762,9 +825,10 @@ export async function runAnalysisGraph(
     messages: [],
   });
 
-  // #region agent log
-  fetch('http://127.0.0.1:7439/ingest/d2836ca5-d253-4abc-ae4c-b65a3a5711c8',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'28b230'},body:JSON.stringify({sessionId:'28b230',location:'requirement-analysis-graph.ts:411',message:'graph.invoke 完成',data:{intent:result.intent,hasSummary:!!result.summary,hasQueryResponse:!!result.queryResponse,hasChatResponse:!!result.chatResponse},timestamp:Date.now(),hypothesisId:'B'})}).catch(()=>{});
-  // #endregion
+  log.debug(
+    { intent: result.intent, hasSummary: !!result.summary },
+    'runAnalysisGraph_invoke_done',
+  );
   
   // 构建步骤记录
   const steps: Record<string, string> = {
@@ -784,9 +848,13 @@ export async function runAnalysisGraph(
     steps.chatResponse = result.chatResponse || '';
   }
   
-  // #region agent log
-  fetch('http://127.0.0.1:7439/ingest/d2836ca5-d253-4abc-ae4c-b65a3a5711c8',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'28b230'},body:JSON.stringify({sessionId:'28b230',location:'requirement-analysis-graph.ts:436',message:'runAnalysisGraph 完成',data:{intent:result.intent,summaryLength:(result.summary||result.queryResponse||result.chatResponse||'').length},timestamp:Date.now(),hypothesisId:'B'})}).catch(()=>{});
-  // #endregion
+  log.debug(
+    {
+      intent: result.intent,
+      summaryLength: (result.summary || result.queryResponse || result.chatResponse || '').length,
+    },
+    'runAnalysisGraph_done',
+  );
   
   // 返回结果
   return {

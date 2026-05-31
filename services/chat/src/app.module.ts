@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, type MiddlewareConsumer, type NestModule } from '@nestjs/common';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { AuthModule } from './auth/auth.module';
@@ -11,6 +11,7 @@ import { SseModule } from './sse/sse.module';
 import { ModelConfigModule } from './model-config/model-config.module';
 import { ArtifactModule } from './artifact/artifact.module';
 import { ScheduleModule } from '@nestjs/schedule';
+import { TraceMiddleware } from './observability/trace.middleware';
 
 @Module({
   imports: [
@@ -28,4 +29,9 @@ import { ScheduleModule } from '@nestjs/schedule';
   controllers: [AppController],
   providers: [AppService],
 })
-export class AppModule {}
+export class AppModule implements NestModule {
+  // 16.2.4：在请求入口建立 traceId 上下文，让全链路日志可被同一 traceId 串联
+  configure(consumer: MiddlewareConsumer) {
+    consumer.apply(TraceMiddleware).forRoutes('*');
+  }
+}

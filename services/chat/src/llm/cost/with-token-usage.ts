@@ -91,25 +91,47 @@ function extractUsageFromResponse(response: any): {
   outputTokens: number;
   cachedInputTokens?: number;
 } | null {
-  // LangChain ChatOpenAI 把 usage 放在 response_metadata.usage 或 usage_metadata
-  const metadata = response?.response_metadata || response?.usage_metadata;
-  if (!metadata) return null;
-
-  const usage = metadata.usage || metadata.token_usage || metadata;
-  if (usage?.prompt_tokens != null && usage?.completion_tokens != null) {
+  // 1) LangChain 标准化字段 usage_metadata：AIMessage 上最可靠的来源
+  //    （ChatOpenAI 真实调用会填充 input_tokens/output_tokens，含工具调用轮次）
+  const um = response?.usage_metadata;
+  if (um?.input_tokens != null && um?.output_tokens != null) {
     return {
-      inputTokens: usage.prompt_tokens,
-      outputTokens: usage.completion_tokens,
-      cachedInputTokens: usage.prompt_tokens_details?.cached_tokens || 0,
+      inputTokens: um.input_tokens,
+      outputTokens: um.output_tokens,
+      cachedInputTokens: um.input_token_details?.cache_read ?? 0,
     };
   }
-  // LangChain v2 format
-  if (usage?.input_tokens != null && usage?.output_tokens != null) {
-    return {
-      inputTokens: usage.input_tokens,
-      outputTokens: usage.output_tokens,
-      cachedInputTokens: usage.cache_read_input_tokens || 0,
-    };
+
+  // 2) response_metadata 下的 usage / token_usage / tokenUsage（不同 provider/版本口径）
+  const usage =
+    response?.response_metadata?.usage ||
+    response?.response_metadata?.token_usage ||
+    response?.response_metadata?.tokenUsage;
+  if (usage) {
+    // OpenAI 下划线口径
+    if (usage.prompt_tokens != null && usage.completion_tokens != null) {
+      return {
+        inputTokens: usage.prompt_tokens,
+        outputTokens: usage.completion_tokens,
+        cachedInputTokens: usage.prompt_tokens_details?.cached_tokens || 0,
+      };
+    }
+    // OpenAI 驼峰口径（LangChain 旧版 response_metadata.tokenUsage）
+    if (usage.promptTokens != null && usage.completionTokens != null) {
+      return {
+        inputTokens: usage.promptTokens,
+        outputTokens: usage.completionTokens,
+        cachedInputTokens: usage.promptTokensDetails?.cachedTokens || 0,
+      };
+    }
+    // Anthropic / v2 口径
+    if (usage.input_tokens != null && usage.output_tokens != null) {
+      return {
+        inputTokens: usage.input_tokens,
+        outputTokens: usage.output_tokens,
+        cachedInputTokens: usage.cache_read_input_tokens || 0,
+      };
+    }
   }
   return null;
 }

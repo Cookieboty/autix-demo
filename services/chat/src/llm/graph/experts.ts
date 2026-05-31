@@ -8,7 +8,11 @@ import { StateGraph, START, END } from '@langchain/langgraph';
 import { BaseChatModel } from '@langchain/core/language_models/chat_models';
 import { AIMessage, BaseMessage, ToolMessage } from '@langchain/core/messages';
 import { z } from 'zod';
-import { RequirementAnalysisState } from './requirement-analysis-graph';
+import {
+  RequirementAnalysisState,
+  wrapNodeUsage,
+  type GraphObservability,
+} from './requirement-analysis-graph';
 import { searchRequirementTool, checkConflictsTool } from '../tools/analysis-tools';
 import {
   readFeatureSpecTool,
@@ -36,23 +40,27 @@ type ExpertOptions = {
     | 'securityAnalysis'
     | 'complianceAnalysis';
   maxSteps?: number;
+  // 16.4 opt-in：传入后专家的真实 LLM 调用会写 token_usages
+  obs?: GraphObservability;
 };
 
 export function createExpertSubGraph(opts: ExpertOptions) {
-  const { model, tools, systemPrompt, outputField, maxSteps = 6 } = opts;
+  const { model, tools, systemPrompt, outputField, maxSteps = 6, obs } = opts;
 
   async function agentNode(
     state: typeof RequirementAnalysisState.State,
   ): Promise<Partial<typeof RequirementAnalysisState.State>> {
     try {
       const modelWithTools = model.bindTools?.(tools) || model;
-      const response = await modelWithTools.invoke([
+      const response = await wrapNodeUsage(obs, 'analysisStep', opts.name, () =>
+        modelWithTools.invoke([
         { role: 'system', content: systemPrompt },
         {
           role: 'user',
           content: `已澄清的需求：${JSON.stringify(state.clarified)}\n\n原始输入：${state.input}`,
         },
-      ]);
+      ]),
+      );
       return { messages: [response] };
     } catch (err) {
       console.error(`[${opts.name} Expert] 执行失败：`, err);
@@ -163,10 +171,11 @@ export function createExpertSubGraph(opts: ExpertOptions) {
 // 四个专家工厂
 // ---------------------------------------------------------------------------
 
-export function createFunctionalExpert(model: BaseChatModel) {
+export function createFunctionalExpert(model: BaseChatModel, obs?: GraphObservability) {
   return createExpertSubGraph({
     name: 'functional',
     model,
+    obs,
     tools: [searchRequirementTool, checkConflictsTool, readFeatureSpecTool],
     systemPrompt: `你是功能需求分析专家，专注评估需求的功能完整性、交互合理性和系统兼容性。
 
@@ -200,10 +209,11 @@ export function createFunctionalExpert(model: BaseChatModel) {
   });
 }
 
-export function createPerformanceExpert(model: BaseChatModel) {
+export function createPerformanceExpert(model: BaseChatModel, obs?: GraphObservability) {
   return createExpertSubGraph({
     name: 'performance',
     model,
+    obs,
     tools: [loadPerfBaselineTool, checkPerfBudgetTool],
     systemPrompt: `你是系统性能分析专家，专注评估需求对系统吞吐、延迟、资源占用的影响。
 
@@ -241,10 +251,11 @@ export function createPerformanceExpert(model: BaseChatModel) {
   });
 }
 
-export function createSecurityExpert(model: BaseChatModel) {
+export function createSecurityExpert(model: BaseChatModel, obs?: GraphObservability) {
   return createExpertSubGraph({
     name: 'security',
     model,
+    obs,
     tools: [checkSecurityPolicyTool, listAuthScenariosTool],
     systemPrompt: `你是信息安全分析专家，专注识别需求中的安全风险和合规要求。
 
@@ -282,10 +293,11 @@ export function createSecurityExpert(model: BaseChatModel) {
   });
 }
 
-export function createComplianceExpert(model: BaseChatModel) {
+export function createComplianceExpert(model: BaseChatModel, obs?: GraphObservability) {
   return createExpertSubGraph({
     name: 'compliance',
     model,
+    obs,
     tools: [
       checkComplianceMatrixTool,
       checkDataResidencyTool,
@@ -443,11 +455,11 @@ export function routeToExperts(
 // Supervisor 子图装配
 // ---------------------------------------------------------------------------
 
-export function createAnalysisSupervisorSubGraph(model: BaseChatModel) {
-  const functionalExpert = createFunctionalExpert(model);
-  const performanceExpert = createPerformanceExpert(model);
-  const securityExpert = createSecurityExpert(model);
-  const complianceExpert = createComplianceExpert(model);
+export function createAnalysisSupervisorSubGraph(model: BaseChatModel, obs?: GraphObservability) {
+  const functionalExpert = createFunctionalExpert(model, obs);
+  const performanceExpert = createPerformanceExpert(model, obs);
+  const securityExpert = createSecurityExpert(model, obs);
+  const complianceExpert = createComplianceExpert(model, obs);
 
   return new StateGraph(RequirementAnalysisState)
     .addNode('supervisor', (state) => supervisorNode(state, { model }))
