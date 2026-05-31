@@ -9,6 +9,7 @@ import { MessageModule } from './message/message.module';
 import { ConversationModule } from './conversation/conversation.module';
 import { DocumentModule } from './document/document.module';
 import { SseModule } from './sse/sse.module';
+import { UiChatModule } from './llm/ui-protocol/ui-chat.module';
 
 @Module({
   imports: [
@@ -20,6 +21,7 @@ import { SseModule } from './sse/sse.module';
     ConversationModule,
     DocumentModule,
     SseModule,
+    UiChatModule,
   ],
   controllers: [AppController],
   providers: [AppService],
