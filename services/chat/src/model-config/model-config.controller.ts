@@ -16,6 +16,7 @@ import {
 import { Request } from 'express';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { ModelConfigService } from './model-config.service';
+import { maskApiKey } from '../security/mask';
 import { IsString, IsOptional, IsBoolean, IsInt, IsEnum, IsObject, Min } from 'class-validator';
 import { ModelType, ModelVisibility } from '@prisma/client';
 
@@ -142,7 +143,9 @@ export class ModelConfigController {
   @Get('default/:type')
   async findDefault(@Req() req: Request, @Param('type') type: ModelType) {
     const userId = (req.user as any).userId;
-    return this.modelConfigService.findDefaultByTypeForUser(type, userId);
+    const config = await this.modelConfigService.findDefaultByTypeForUser(type, userId);
+    // 18.7.1 apiKey 返回脱敏（服务层仍返回明文供 orchestrator 真实调用，泄漏只堵在返回层）
+    return config ? maskApiKey(config) : config;
   }
 
   /**
@@ -150,7 +153,8 @@ export class ModelConfigController {
    */
   @Get('admin')
   async findAll() {
-    return this.modelConfigService.findAll();
+    const configs = await this.modelConfigService.findAll();
+    return configs.map(maskApiKey);
   }
 
   /**
@@ -158,7 +162,7 @@ export class ModelConfigController {
    */
   @Get(':id')
   async findOne(@Param('id') id: string) {
-    return this.modelConfigService.findById(id);
+    return maskApiKey(await this.modelConfigService.findById(id));
   }
 
   /**
@@ -168,7 +172,7 @@ export class ModelConfigController {
   @UsePipes(new ValidationPipe({ transform: true, whitelist: true }))
   async create(@Req() req: Request, @Body() dto: CreateModelConfigDto) {
     const userId = (req.user as any).userId;
-    return this.modelConfigService.create(dto, userId);
+    return maskApiKey(await this.modelConfigService.create(dto, userId));
   }
 
   /**
@@ -177,7 +181,7 @@ export class ModelConfigController {
   @Put(':id')
   @UsePipes(new ValidationPipe({ transform: true, whitelist: true }))
   async update(@Param('id') id: string, @Body() dto: UpdateModelConfigDto) {
-    return this.modelConfigService.update(id, dto);
+    return maskApiKey(await this.modelConfigService.update(id, dto));
   }
 
   /**

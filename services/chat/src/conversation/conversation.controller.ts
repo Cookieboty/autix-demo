@@ -28,6 +28,11 @@ import { UIActionParser } from './ui-action.parser';
 import { PrismaService } from '../prisma/prisma.service';
 import { ArtifactService } from '../artifact/artifact.service';
 import type { StreamMessage, MarkdownPayload, UIPayload, MetaPayload, ProgressPayload } from '../llm/ui-protocol/ui-types';
+import { ChatMessageDto } from './dto/chat-message.dto';
+import { inspectInput } from '../security/input-guard';
+import { createLogger } from '../observability/logger';
+
+const securityLog = createLogger('security');
 
 // Agent 名称映射
 const AGENT_DISPLAY_NAMES: Record<string, string> = {
@@ -140,12 +145,24 @@ export class ConversationController {
     @Req() req: Request,
     @Res() res: Response,
     @Param('id') id: string,
-    @Body() body: { message: string; modelId?: string },
+    @Body() body: ChatMessageDto,
   ) {
     const userId = (req.user as any).userId;
 
     // 验证会话所有权（不存在抛 404，非本人抛 403）
     await this.conversationService.findById(id, userId);
+
+    // 18.3.2 prompt-injection 守卫：仅对文本消息检测，命中只记安全日志
+    // （不记原文，只记命中模式 id 与长度，呼应 18.7.2 日志纪律）+ 强化边界后继续放行
+    if (typeof body.message === 'string') {
+      const guard = inspectInput(body.message);
+      if (guard.flagged) {
+        securityLog.warn(
+          { matched: guard.matched, inputLen: body.message.length },
+          'prompt_injection_suspected',
+        );
+      }
+    }
 
     // 幂等性检查：防止短时间内处理相同消息
     const messageStr = typeof body.message === 'string' ? body.message : JSON.stringify(body.message);
@@ -246,7 +263,7 @@ export class ConversationController {
       let searchResults: Awaited<ReturnType<SearchService['similaritySearch']>> = [];
       try {
         searchResults = await this.searchService.similaritySearch(
-          body.message,
+          body.message as string,
           userId,
           topK,
         );
@@ -295,7 +312,7 @@ export class ConversationController {
 
       // 使用流式 API
       const stream = this.orchestratorService.streamOrchestrate(
-        isUIAction ? messageContent : body.message,
+        (isUIAction ? messageContent : body.message) as string,
         retrievedContext,
         modelConfigId,
         uiContext || undefined,

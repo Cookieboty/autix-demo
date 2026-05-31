@@ -10,6 +10,7 @@
 import { DynamicStructuredTool } from '@langchain/core/tools';
 import { MCPClientService, MCPClientConfig } from './mcp-client.service.js';
 import { bridgeMCPToLangChain } from './mcp-to-langchain.js';
+import { isAllowed } from '../security/tool-policy';
 
 export interface ServerRegistration {
   id: string;
@@ -56,8 +57,12 @@ export class MCPManager {
     this.tools.push(...bridgedTools);
   }
 
+  /**
+   * 返回暴露给 Agent 的工具集——经白名单过滤（18.4.2 默认 deny）。
+   * 未在 tool-policy 登记的工具一律不进 Agent，哪怕某个 MCP server 暴露了它。
+   */
   getTools(): DynamicStructuredTool[] {
-    return this.tools;
+    return this.tools.filter((t) => isAllowed(t.name));
   }
 
   getClient(serverId: string): MCPClientService | undefined {
