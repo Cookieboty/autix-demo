@@ -710,9 +710,11 @@ export class OrchestratorService {
     let rootRunId: string | undefined;
     let finalState: DeepFinalState | null = null;
 
+    // 带了 checkpointer（MemorySaver）就必须给 thread_id，否则 checkpointer 落盘时报错
+    const threadId = `deep-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     for await (const ev of agent.streamEvents(
       { messages: [{ role: 'user', content: ctx }] },
-      { version: 'v2' },
+      { version: 'v2', configurable: { thread_id: threadId } },
     )) {
       if (!rootRunId && ev.event === 'on_chain_start') rootRunId = ev.run_id;
       switch (ev.event) {
