@@ -16,6 +16,7 @@
  */
 import { Injectable } from '@nestjs/common';
 import { RunnableLambda, RunnableConfig } from '@langchain/core/runnables';
+import type { BaseChatModel } from '@langchain/core/language_models/chat_models';
 import {
   createExtractAgent,
   createClarifyAgent,
@@ -33,6 +34,19 @@ import type { AIUIResponse, OrchestratorStreamEvent, OrchestratorResult } from '
 /**
  * Pipeline 的最终返回类型（已导入自 ui-types.ts）
  */
+
+/**
+ * 20.6：长链判定。跨多个工单（输入里有 ≥2 个不同 REQ 编号）视为长链 → 走 DeepAgent；
+ * 单需求走现有主图。纯函数、零 LLM，供 Layer 1 确定性测试直接断言。
+ *
+ * 判错的代价（见 20.6.3）：误判长→慢且贵；误判短→长任务塞进短图可能上下文超窗。
+ * 故判定刻意保守、可解释（只认显式的多工单信号），不做模糊推断。
+ */
+export function detectLongChain(input: string): boolean {
+  const reqIds = input.match(/REQ-?\d+/gi) ?? [];
+  const distinct = new Set(reqIds.map((s) => s.toUpperCase().replace(/-/g, '')));
+  return distinct.size >= 2;
+}
 
 @Injectable()
 export class OrchestratorService {
@@ -426,7 +440,13 @@ export class OrchestratorService {
 
       // 创建 Model 实例
       const { model } = await this.createAgents(modelConfigId);
-      
+
+      // 20.6：长链路由——多工单/跨工单走 DeepAgent，单需求走现有主图（最高风险接线点）
+      if (detectLongChain(input)) {
+        yield* this.streamDeepAgent(input, retrievedContext, model);
+        return;
+      }
+
       // Yield 日志事件代替原有的 fetch
       yield {
         type: 'log',
@@ -649,6 +669,96 @@ export class OrchestratorService {
         },
       };
     }
+  }
+
+  /**
+   * 20.6：DeepAgent 长链分支——把第十五章的 createDeepOrchestrator 接进主链路，
+   * 并把它的 streamEvents(v2) 翻译成主链路的 SSE OrchestratorStreamEvent，让前端无感
+   * （不管走主图还是 DeepAgent，前端收到的都是同一套 progress/token/final 协议）。
+   *
+   * checkpointer 用 MemorySaver（进程内）——长链任务不能跨进程恢复，生产要换 PostgresSaver
+   * （第十五章 15.6.2 声明这会新增 LangGraph 的表，属需拍板的数据模型变更，本章标为生产项）。
+   */
+  private async *streamDeepAgent(
+    input: string,
+    retrievedContext: string,
+    model: BaseChatModel,
+  ): AsyncGenerator<OrchestratorStreamEvent> {
+    const { createDeepOrchestrator } = await import(
+      '../deepagent/deep-orchestrator.service'
+    );
+    const { MemorySaver } = await import('@langchain/langgraph');
+    const agent = createDeepOrchestrator({
+      model,
+      checkpointer: new MemorySaver(),
+    });
+
+    yield {
+      type: 'log',
+      level: 'info',
+      message: 'streamOrchestrate 路由到 DeepAgent 长链分支',
+      data: { input: input.substring(0, 100) },
+    };
+
+    // 检索上下文随首条消息带入（外层 DeepAgent 可见；子 Agent 内部图自有上下文）
+    const ctx = retrievedContext && retrievedContext !== '无相关参考文档'
+      ? `${input}\n\n（参考资料）\n${retrievedContext}`
+      : input;
+
+    type DeepFinalState = { messages?: Array<{ content: unknown }> };
+    let step = 0;
+    let rootRunId: string | undefined;
+    let finalState: DeepFinalState | null = null;
+
+    for await (const ev of agent.streamEvents(
+      { messages: [{ role: 'user', content: ctx }] },
+      { version: 'v2' },
+    )) {
+      if (!rootRunId && ev.event === 'on_chain_start') rootRunId = ev.run_id;
+      switch (ev.event) {
+        case 'on_tool_start': {
+          step++;
+          yield { type: 'agent_start', agent: ev.name, step, totalSteps: 0 };
+          break;
+        }
+        case 'on_tool_end': {
+          yield { type: 'agent_end', agent: ev.name, step };
+          break;
+        }
+        case 'on_chat_model_stream': {
+          const chunk = (ev.data as { chunk?: { content?: unknown } })?.chunk;
+          const content =
+            typeof chunk?.content === 'string' ? chunk.content : '';
+          if (content) {
+            yield { type: 'token', content, agent: 'deepOrchestrator' };
+          }
+          break;
+        }
+        case 'on_chain_end': {
+          if (ev.run_id === rootRunId) {
+            finalState = (ev.data as { output?: DeepFinalState })?.output ?? null;
+          }
+          break;
+        }
+      }
+    }
+
+    const messages = finalState?.messages ?? [];
+    const report = messages.length
+      ? String(messages[messages.length - 1].content)
+      : '（DeepAgent 长链未产出内容）';
+
+    yield {
+      type: 'final',
+      result: {
+        responseType: 'markdown',
+        mode: 'fixed',
+        usedAgents: ['deepOrchestrator'],
+        steps: { deepOrchestrator: report },
+        report,
+        thinking: 'DeepAgent 跨工单编排：write_todos → 逐工单 task 委派 → 汇总',
+      },
+    };
   }
 
   /**
