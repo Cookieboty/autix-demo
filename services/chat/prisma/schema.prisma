@@ -1,0 +1,88 @@
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
+}
+
+datasource db {
+  provider   = "postgresql"
+  extensions = [vector]
+}
+
+// 用户表维护在 user-system 微服务中，这里 userId 用裸 String 关联（不建外键）。
+
+model conversations {
+  id        String     @id @default(cuid())
+  userId    String
+  title     String     @default("New Conversation")
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+  messages  messages[]
+
+  @@index([userId])
+}
+
+model messages {
+  id             String        @id @default(cuid())
+  conversationId String
+  role           MessageRole
+  content        String
+  metadata       Json?
+  createdAt      DateTime      @default(now())
+  conversations  conversations @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId])
+}
+
+model documents {
+  id              String            @id @default(cuid())
+  userId          String
+  filename        String
+  mimeType        String
+  size            Int
+  filePath        String?
+  storageType     String            @default("local")
+  status          String            @default("pending")
+  chunkCount      Int               @default(0)
+  createdAt       DateTime          @default(now())
+  document_chunks document_chunks[]
+
+  @@index([userId])
+}
+
+model document_chunks {
+  id         String                 @id @default(cuid())
+  documentId String
+  content    String
+  chunkIndex Int
+  embedding  Unsupported("vector")?
+  documents  documents              @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@index([documentId])
+}
+
+model task_events {
+  id        String     @id @default(cuid())
+  userId    String     @db.VarChar(255)
+  taskType  String     @db.VarChar(100)
+  taskId    String     @db.VarChar(255)
+  status    TaskStatus
+  message   String?
+  metadata  Json?
+  createdAt DateTime   @default(now()) @db.Timestamptz(6)
+  readAt    DateTime?  @db.Timestamptz(6)
+
+  @@index([taskType])
+  @@index([userId, createdAt])
+}
+
+enum MessageRole {
+  USER
+  ASSISTANT
+}
+
+enum TaskStatus {
+  pending
+  processing
+  done
+  error
+}

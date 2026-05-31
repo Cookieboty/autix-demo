@@ -46,7 +46,10 @@ function parseJsonLoose(raw: string): any {
 
 @Injectable()
 export class OrchestratorService {
-  async orchestrate(input: string): Promise<OrchestratorResult> {
+  async orchestrate(
+    input: string,
+    retrievedContext = '无相关参考文档'
+  ): Promise<OrchestratorResult> {
     try {
       const extractResult = await extractAgent.invoke({ input });
 
@@ -82,7 +85,7 @@ export class OrchestratorService {
         extractResult,
         analysisResult,
         riskResult,
-        retrievedContext: '无相关参考文档',
+        retrievedContext,
       });
 
       return {

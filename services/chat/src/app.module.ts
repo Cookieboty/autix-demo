@@ -1,11 +1,26 @@
 import { Module } from '@nestjs/common';
+import { ScheduleModule } from '@nestjs/schedule';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
+import { PrismaModule } from './prisma/prisma.module';
+import { AuthModule } from './auth/auth.module';
 import { LlmModule } from './llm/llm.module';
-import { AdvancedModule } from './llm/advanced.module';
+import { MessageModule } from './message/message.module';
+import { ConversationModule } from './conversation/conversation.module';
+import { DocumentModule } from './document/document.module';
+import { SseModule } from './sse/sse.module';
 
 @Module({
-  imports: [LlmModule, AdvancedModule],
+  imports: [
+    ScheduleModule.forRoot(),
+    PrismaModule,
+    AuthModule,
+    LlmModule,
+    MessageModule,
+    ConversationModule,
+    DocumentModule,
+    SseModule,
+  ],
   controllers: [AppController],
   providers: [AppService],
 })
