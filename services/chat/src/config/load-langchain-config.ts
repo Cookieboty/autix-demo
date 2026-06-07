@@ -1,6 +1,6 @@
-import fs from 'node:fs';
-import path from 'node:path';
-import yaml from 'js-yaml';
+import * as fs from 'node:fs';
+import * as path from 'node:path';
+import * as yaml from 'js-yaml';
 
 export type LangChainAppConfig = {
   llm: {
@@ -23,6 +23,31 @@ export type LangChainAppConfig = {
   };
 };
 
+let localEnvLoaded = false;
+
+function loadLocalEnv() {
+  if (localEnvLoaded) return;
+  localEnvLoaded = true;
+
+  const envPath = path.join(process.cwd(), '.env');
+  if (fs.existsSync(envPath)) {
+    const raw = fs.readFileSync(envPath, 'utf8');
+    for (const line of raw.split(/\r?\n/)) {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.startsWith('#')) continue;
+
+      const separatorIndex = trimmed.indexOf('=');
+      if (separatorIndex === -1) continue;
+
+      const key = trimmed.slice(0, separatorIndex).trim();
+      const value = trimmed.slice(separatorIndex + 1).trim().replace(/^['"]|['"]$/g, '');
+      if (key && process.env[key] === undefined) {
+        process.env[key] = value;
+      }
+    }
+  }
+}
+
 export function loadLangChainConfig(): LangChainAppConfig {
   const filePath = path.join(process.cwd(), 'config', 'langchain.yaml');
   const raw = fs.readFileSync(filePath, 'utf8');
@@ -30,6 +55,8 @@ export function loadLangChainConfig(): LangChainAppConfig {
 }
 
 export function getApiKeys() {
+  loadLocalEnv();
+
   return {
     openaiApiKey: process.env.OPENAI_API_KEY ?? '',
     openaiBaseUrl: process.env.OPENAI_BASE_URL,
