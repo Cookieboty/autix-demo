@@ -1,6 +1,7 @@
-import fs from 'node:fs';
-import path from 'node:path';
-import yaml from 'js-yaml';
+import * as fs from 'node:fs';
+import * as path from 'node:path';
+import { loadEnvFile } from 'node:process';
+import * as yaml from 'js-yaml';
 
 export type LangChainAppConfig = {
   llm: {
@@ -23,6 +24,18 @@ export type LangChainAppConfig = {
   };
 };
 
+let localEnvLoaded = false;
+
+function loadLocalEnv() {
+  if (localEnvLoaded) return;
+  localEnvLoaded = true;
+
+  const envPath = path.join(process.cwd(), '.env');
+  if (fs.existsSync(envPath)) {
+    loadEnvFile(envPath);
+  }
+}
+
 export function loadLangChainConfig(): LangChainAppConfig {
   const filePath = path.join(process.cwd(), 'config', 'langchain.yaml');
   const raw = fs.readFileSync(filePath, 'utf8');
@@ -30,6 +43,8 @@ export function loadLangChainConfig(): LangChainAppConfig {
 }
 
 export function getApiKeys() {
+  loadLocalEnv();
+
   return {
     openaiApiKey: process.env.OPENAI_API_KEY ?? '',
     openaiBaseUrl: process.env.OPENAI_BASE_URL,
