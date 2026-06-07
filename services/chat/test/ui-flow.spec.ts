@@ -64,4 +64,14 @@ describe('UIFlowService 交互闭环', () => {
     });
     expect(back.components[0].type).toBe('form');
   });
+
+  it('查询需求编号时返回 card，而不是进入新需求流程', () => {
+    const flow = new UIFlowService();
+    const result = flow.handleInput('spec-card', '查看需求 REQ-20240315-001');
+
+    expect(result.components[0].type).toBe('card');
+    if (result.components[0].type === 'card') {
+      expect(result.components[0].title).toContain('REQ-20240315-001');
+    }
+  });
 });

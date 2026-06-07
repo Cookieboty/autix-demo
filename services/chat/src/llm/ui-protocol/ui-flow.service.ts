@@ -37,14 +37,14 @@ export class UIFlowService {
   handleInput(sessionId: string, input: string): AIUIResponse {
     const ctx = this.getContext(sessionId);
 
+    if (input.includes('查看') || input.includes('查询')) {
+      return this.buildRequirementCard(input);
+    }
+
     if (input.includes('需求') || input.includes('功能')) {
       ctx.collectedData.rawInput = input;
       ctx.stage = 'select_type';
       return this.buildSelectType(ctx);
-    }
-
-    if (input.includes('查看') || input.includes('查询')) {
-      return this.buildRequirementCard(input);
     }
 
     return {

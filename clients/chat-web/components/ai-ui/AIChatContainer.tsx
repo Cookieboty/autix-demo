@@ -12,6 +12,10 @@ interface ChatMessage {
   components?: AIUIResponse['components'];
 }
 
+interface ApiResponse<T> {
+  data: T;
+}
+
 export function AIChatContainer({ sessionId }: { sessionId: string }) {
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
@@ -40,7 +44,8 @@ export function AIChatContainer({ sessionId }: { sessionId: string }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ sessionId, input: text }),
       });
-      addAIMessage((await res.json()) as AIUIResponse);
+      const payload = (await res.json()) as ApiResponse<AIUIResponse>;
+      addAIMessage(payload.data);
     } finally {
       setLoading(false);
     }
@@ -59,7 +64,8 @@ export function AIChatContainer({ sessionId }: { sessionId: string }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ sessionId, action }),
       });
-      addAIMessage((await res.json()) as AIUIResponse);
+      const payload = (await res.json()) as ApiResponse<AIUIResponse>;
+      addAIMessage(payload.data);
     } finally {
       setLoading(false);
     }

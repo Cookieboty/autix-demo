@@ -24,7 +24,17 @@ export class UIChatController {
 
   /** LLM 驱动：用 withStructuredOutput 让模型直接产出 UI 协议（6.2 能力） */
   @Post('generate')
-  generate(@Body() body: { input: string; context?: Record<string, unknown> }) {
-    return this.uiResponse.generateUIResponse(body.input, [], body.context);
+  async generate(@Body() body: { input: string; context?: Record<string, unknown> }) {
+    try {
+      return await this.uiResponse.generateUIResponse(body.input, [], body.context);
+    } catch (err) {
+      // LLM structured output is an external dependency; keep the endpoint usable with
+      // the deterministic UI flow rather than leaking parser/provider failures as 500s.
+      console.error(
+        '[UIChatController] structured generation failed:',
+        err instanceof Error ? err.name : 'UnknownError',
+      );
+      return this.uiFlow.handleInput('ui-generate-fallback', body.input);
+    }
   }
 }
