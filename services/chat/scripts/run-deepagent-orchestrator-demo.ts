@@ -1,11 +1,11 @@
 /**
- * DeepAgent 跨工单协调 Demo — 第十五章 15.3 / 15.4 配套脚本
+ * DeepAgent 跨需求协调 Demo — 第十五章 15.3 / 15.4 配套脚本
  *
  * 演示流程：
  * 1. createDeepOrchestrator 把第九章 createAnalysisGraph 包成 requirement_analyst 子 Agent
- * 2. DeepAgent 外层自己用 write_todos 拆「逐工单分析 + 汇总」
- * 3. 对每个工单用 task 委派给子 Agent，子 Agent 内部跑 Supervisor + 4 专家 + Critic-Refine
- * 4. 把每个工单摘要写进虚拟文件系统，最后汇总成总体影响评估
+ * 2. DeepAgent 外层自己用 write_todos 拆「逐需求分析 + 汇总」
+ * 3. 对每个需求用 task 委派给子 Agent，子 Agent 内部跑 Supervisor + 4 专家 + Critic-Refine
+ * 4. 把每个需求摘要写进虚拟文件系统，最后汇总成总体影响评估
  *
  * 本脚本用 streamEvents(v2) 实时打印「每一步」与「每一次真实 LLM 调用」：
  * - 🧠 每次真实 LLM 调用（含子 Agent 内部第九章那张图的调用）
@@ -37,7 +37,7 @@ const task = [
 ].join('\n');
 
 console.log('='.repeat(80));
-console.log('🧭 DeepAgent 跨工单协调 Demo（createAnalysisGraph 作为子 Agent）');
+console.log('🧭 DeepAgent 跨需求协调 Demo（createAnalysisGraph 作为子 Agent）');
 console.log('='.repeat(80));
 console.log('📨 任务：\n' + task);
 console.log('─'.repeat(80));

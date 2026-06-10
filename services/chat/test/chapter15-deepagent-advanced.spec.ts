@@ -8,7 +8,7 @@
  *   - createAnalysisSubagent：子 Agent 结构（名字/描述/runnable）
  *   - createDeepOrchestrator：构造与 interruptOn 守卫
  *   - FilesystemBackend：文件落到真实磁盘、跨实例可读回（持久化的可跑部分）
- * Layer 2：跨工单端到端（需要 OPENAI_API_KEY 且 RUN_LLM_DEEPAGENT_TESTS=1）
+ * Layer 2：跨需求端到端（需要 OPENAI_API_KEY 且 RUN_LLM_DEEPAGENT_TESTS=1）
  *   - DeepAgent 自主规划 + 委派 requirement_analyst 子 Agent
  *
  * 运行方式：
@@ -137,11 +137,35 @@ describe('15.6 本地磁盘 FilesystemBackend：跨实例读回', () => {
   });
 });
 
+describe('15.9.1 权限规则结构验证', () => {
+  it('permissions 作为 createDeepAgent 中间件参数被接受', () => {
+    const agent = createDeepOrchestrator({
+      model: makeStubModel(),
+      rootDir: '/tmp/deepagent-ch15-perm',
+      permissions: [
+        { operations: ['write'], paths: ['/readonly/**'], mode: 'deny' },
+        { operations: ['read', 'write'], paths: ['/workspace/**'], mode: 'allow' },
+      ],
+    });
+    expect(typeof agent.invoke).toBe('function');
+    console.log('  ✅ 含多条权限规则的 orchestrator 创建成功');
+    console.log('  ℹ️  permissions 在 FilesystemMiddleware 层执行，enforcement 需要 Agent 运行时（Layer 2）');
+  });
+
+  it('permissions 格式：operations + paths + mode 三字段', () => {
+    const rule = { operations: ['write'] as const, paths: ['/readonly/**'], mode: 'deny' as const };
+    expect(rule.operations).toContain('write');
+    expect(rule.paths[0]).toMatch(/^\//);
+    expect(['allow', 'deny']).toContain(rule.mode);
+    console.log('  ✅ FilesystemPermission 结构：', JSON.stringify(rule));
+  });
+});
+
 // ============================================================================
-// Layer 2：跨工单端到端
+// Layer 2：跨需求端到端
 // ============================================================================
 
-describe('15.3 / 15.4 跨工单端到端：委派子 Agent + 自主规划', () => {
+describe('15.3 / 15.4 跨需求端到端：委派子 Agent + 自主规划', () => {
   if (SKIP_LLM) {
     it.skip('需要 OPENAI_API_KEY 且 RUN_LLM_DEEPAGENT_TESTS=1', () => {});
     return;

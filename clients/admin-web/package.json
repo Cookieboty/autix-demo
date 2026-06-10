@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "wait-on tcp:4002 && PORT=3001 next dev",
-    "build": "next build",
+    "build": "next build --webpack",
     "start": "next start",
     "lint": "eslint",
     "typecheck": "tsc --noEmit"

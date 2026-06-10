@@ -2,7 +2,7 @@
  * deep-orchestrator.service.ts — 第十五章配套模块
  *
  * 把第九章的 createAnalysisGraph（已编译 LangGraph）以「子 Agent」形式接入 DeepAgent，
- * 由 DeepAgent 做外层跨工单编排（write_todos + 虚拟文件系统 + task 委派），
+ * 由 DeepAgent 做外层跨需求编排（write_todos + 虚拟文件系统 + task 委派），
  * LangGraph 图做子 Agent 内部的精确控制（Supervisor + 4 专家 + Critic-Refine）。
  *
  * 设计要点（见第十五章 15.3）：
@@ -15,7 +15,13 @@
  * 本模块不挂到现有 OrchestratorService / SSE 路由，既有业务数据流保持不变；
  * 仅作为可被脚本与测试调用的独立模块。
  */
-import { createDeepAgent, FilesystemBackend, type CompiledSubAgent, type FilesystemPermission } from 'deepagents';
+import {
+  createDeepAgent,
+  FilesystemBackend,
+  type CompiledSubAgent,
+  type DeepAgent,
+  type FilesystemPermission,
+} from 'deepagents';
 import { type BaseCheckpointSaver } from '@langchain/langgraph';
 import { RunnableLambda } from '@langchain/core/runnables';
 import { AIMessage, type BaseMessage } from '@langchain/core/messages';
@@ -73,7 +79,7 @@ export function createAnalysisSubagent(model: BaseChatModel): CompiledSubAgent {
   return {
     name: ANALYSIS_SUBAGENT_NAME,
     description:
-      '需求分析专家。输入单个工单/需求的描述文本，内部跑第九章 Supervisor + 4 专家并行 + Critic-Refine，返回该需求的综合分析摘要。',
+      '需求分析专家。输入单个需求的描述文本，内部跑第九章 Supervisor + 4 专家并行 + Critic-Refine，返回该需求的综合分析摘要。',
     // 跨包类型标识不一致（deepagents 内置的 Runnable 与本仓库 @langchain/core 的 Runnable 非同一声明），运行时一致，这里做结构化断言。
     runnable: runnable as unknown as CompiledSubAgent['runnable'],
   };
@@ -94,21 +100,21 @@ export interface DeepOrchestratorOptions {
   interruptOn?: Record<string, boolean>;
 }
 
-const ORCHESTRATOR_SYSTEM_PROMPT = `你是一个跨工单需求分析协调者。
+const ORCHESTRATOR_SYSTEM_PROMPT = `你是一个跨需求分析协调者。
 
 工作方式：
-1. 先用 write_todos 把任务拆成「逐个工单分析 + 最终汇总」的步骤。
-2. 对每个工单，用 task 工具委派给 ${ANALYSIS_SUBAGENT_NAME} 子 Agent 做深度分析。
-3. 把每个工单的分析摘要用 write_file 落到单独的 .md 文件，主回路只保留摘要。
-4. 全部工单分析完后，读取这些文件，输出一份「总体影响评估」报告。`;
+1. 先用 write_todos 把任务拆成「逐个需求分析 + 最终汇总」的步骤。
+2. 对每个需求，用 task 工具委派给 ${ANALYSIS_SUBAGENT_NAME} 子 Agent 做深度分析。
+3. 把每个需求的分析摘要用 write_file 落到单独的 .md 文件，主回路只保留摘要。
+4. 全部需求分析完后，读取这些文件，输出一份「总体影响评估」报告。`;
 
 /**
- * 组装跨工单 DeepAgent 协调者。
+ * 组装跨需求 DeepAgent 协调者。
  *
  * 外层：DeepAgent（write_todos + 虚拟文件系统 + task 委派）。
  * 内层：createAnalysisGraph 作为 requirement_analyst 子 Agent。
  */
-export function createDeepOrchestrator(options: DeepOrchestratorOptions) {
+export function createDeepOrchestrator(options: DeepOrchestratorOptions): DeepAgent {
   const { model, rootDir, checkpointer, permissions, interruptOn } = options;
 
   if (interruptOn && !checkpointer) {
@@ -135,5 +141,5 @@ export function createDeepOrchestrator(options: DeepOrchestratorOptions) {
     ...(checkpointer ? { checkpointer } : {}),
     ...(permissions ? { permissions } : {}),
     ...(interruptOn ? { interruptOn } : {}),
-  });
+  }) as DeepAgent;
 }

@@ -6,7 +6,7 @@
  */
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
-import type { Tool, CallToolResult } from '@modelcontextprotocol/sdk/types.js';
+import { CallToolResultSchema, type Tool, type CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 
 export interface MCPClientConfig {
   /** Server 可执行文件的命令 */
@@ -58,7 +58,8 @@ export class MCPClientService {
     if (!this.connected) {
       throw new Error(`MCPClient not connected. Call connect() first.`);
     }
-    return this.client.callTool({ name, arguments: args });
+    const result = await this.client.callTool({ name, arguments: args }, CallToolResultSchema);
+    return CallToolResultSchema.parse(result);
   }
 
   async close(): Promise<void> {
