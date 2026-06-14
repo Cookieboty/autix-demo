@@ -24,7 +24,7 @@ import { runAnalysisGraph } from '../src/llm/graph/requirement-analysis-graph';
 import { judgeReport } from '../eval/judge';
 import { loadDataset, EVAL_USER_ID } from '../eval/dataset-loader';
 import { precisionAtK, recallAtK, ndcgAtK } from '../rag/evaluation/retrieval-metrics';
-import { runRagas } from '../rag/evaluation/ragas-runner';
+import { runRagas as callRagas } from '../rag/evaluation/ragas-runner';
 import {
   aggregate,
   gateDecision,
@@ -100,7 +100,7 @@ async function main() {
   const args = process.argv.slice(2);
   const noLlm = args.includes('--no-llm');
   const onlyCase = args.find((a) => a.startsWith('--case='))?.split('=')[1];
-  const runRagas = process.env.RUN_RAGAS === '1';
+  const enableRagas = process.env.RUN_RAGAS === '1';
 
   const cases = loadDataset('requirement-analysis').filter((c) => !onlyCase || c.id === onlyCase);
   if (cases.length === 0) throw new Error(`没有匹配的 case（--case=${onlyCase}）`);
@@ -153,8 +153,8 @@ async function main() {
         r.judgePassed = j.passed;
 
         // 6. faithfulness（仅 RUN_RAGAS=1 且服务可达；不可达 runRagas 返回 null 自动跳过）
-        if (runRagas && retrieved.length > 0) {
-          const ragas = await runRagas({
+        if (enableRagas && retrieved.length > 0) {
+          const ragas = await callRagas({
             samples: [
               {
                 question: c.input,
