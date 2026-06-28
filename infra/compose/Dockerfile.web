@@ -13,6 +13,9 @@ COPY services/chat/package.json ./services/chat/
 COPY services/user-system/package.json ./services/user-system/
 COPY clients/chat-web/package.json ./clients/chat-web/
 COPY clients/admin-web/package.json ./clients/admin-web/
+# root 的 postinstall 会跑 prisma generate（database + chat），需 schema 先就位
+COPY packages/database/prisma ./packages/database/prisma
+COPY services/chat/prisma ./services/chat/prisma
 RUN bun install --frozen-lockfile
 
 # ── Stage 2: 构建（turbo 按 filter 只构建 chat-web）──
