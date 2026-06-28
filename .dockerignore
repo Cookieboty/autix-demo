@@ -1,0 +1,19 @@
+# 构建上下文裁剪：deps 阶段已装好依赖并生成 prisma client，
+# build 阶段的 COPY . . 不能把宿主机的 node_modules / 产物拷进来覆盖它们
+**/node_modules
+**/.next
+**/dist
+**/tsconfig.tsbuildinfo
+**/.turbo
+
+# 版本控制 / 本地杂物
+.git
+.gitignore
+**/.DS_Store
+.vscode
+.idea
+
+# secrets：不进镜像（保留 .env.example 供参考）
+**/.env
+**/.env.*
+!**/.env.example
