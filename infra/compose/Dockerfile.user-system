@@ -1,0 +1,30 @@
+# infra/compose/Dockerfile.user-system — monorepo-aware user-system runtime
+
+FROM oven/bun:1.3.11 AS deps
+WORKDIR /app
+COPY package.json bun.lock bunfig.toml ./
+COPY packages/types/package.json ./packages/types/
+COPY packages/contracts/package.json ./packages/contracts/
+COPY packages/database/package.json ./packages/database/
+COPY services/chat/package.json ./services/chat/
+COPY services/user-system/package.json ./services/user-system/
+COPY clients/chat-web/package.json ./clients/chat-web/
+COPY clients/admin-web/package.json ./clients/admin-web/
+COPY packages/database/prisma ./packages/database/prisma
+COPY services/chat/prisma ./services/chat/prisma
+RUN bun install --frozen-lockfile
+
+FROM deps AS build
+COPY . .
+RUN bun run build --filter=@autix/user-system
+RUN cd packages/database && bunx prisma generate
+
+FROM oven/bun:1.3.11-slim AS runtime
+WORKDIR /app
+ENV NODE_ENV=production
+COPY --from=build /app/node_modules ./node_modules
+COPY --from=build /app/packages ./packages
+COPY --from=build /app/services/user-system/node_modules ./services/user-system/node_modules
+COPY --from=build /app/services/user-system/dist ./services/user-system/dist
+EXPOSE 4002
+CMD ["bun", "run", "services/user-system/dist/main.js"]

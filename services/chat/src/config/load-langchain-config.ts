@@ -14,6 +14,12 @@ export interface RetrievalConfig {
   topK: number;
   /** 检索模式：simple=纯向量；hybrid=向量+BM25 多召回再重排（第二十章 20.2，默认 hybrid） */
   mode?: 'simple' | 'hybrid';
+  /**
+   * 检索整体超时（毫秒）。检索是"锦上添花"，绝不能拖垮主链路：
+   * embedding 模型首次下载、向量库不可达等"挂起"场景下，超时即降级为空上下文，主链继续。
+   * 默认 8000ms。
+   */
+  timeoutMs?: number;
 }
 
 export interface ToolsConfig {

@@ -12,10 +12,12 @@
     "build": "turbo run build",
     "typecheck": "turbo run typecheck",
     "test": "turbo run test",
+    "test:e2e": "playwright test",
     "lint": "turbo run lint --filter=!@autix/user"
   },
   "devDependencies": {
     "@nestjs/testing": "^11.1.17",
+    "@playwright/test": "^1.61.1",
     "@types/jest": "^30.0.0",
     "@types/js-yaml": "^4.0.9",
     "jest": "^30.3.0",

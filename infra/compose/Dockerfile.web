@@ -21,6 +21,10 @@ RUN bun install --frozen-lockfile
 # ── Stage 2: 构建（turbo 按 filter 只构建 chat-web）──
 FROM deps AS build
 COPY . .
+ARG NEXT_PUBLIC_CHAT_API_URL=http://localhost:4001
+ARG NEXT_PUBLIC_USER_API_URL=http://localhost:4002/api
+ENV NEXT_PUBLIC_CHAT_API_URL=$NEXT_PUBLIC_CHAT_API_URL
+ENV NEXT_PUBLIC_USER_API_URL=$NEXT_PUBLIC_USER_API_URL
 RUN bun run build --filter=@autix/chat-web
 
 # ── Stage 3: 运行时（只带 standalone 产物）──
@@ -28,6 +32,8 @@ FROM oven/bun:1.3.11-slim AS runtime
 WORKDIR /app
 ENV NODE_ENV=production
 ENV PORT=3002
+ENV NEXT_PUBLIC_CHAT_API_URL=http://localhost:4001
+ENV NEXT_PUBLIC_USER_API_URL=http://localhost:4002/api
 # Next standalone（monorepo）：standalone 内保留 clients/chat-web/server.js 与追踪到的 node_modules
 COPY --from=build /app/clients/chat-web/.next/standalone ./
 COPY --from=build /app/clients/chat-web/.next/static ./clients/chat-web/.next/static

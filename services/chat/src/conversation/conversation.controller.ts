@@ -179,7 +179,9 @@ export class ConversationController {
     if (existing && existing.message === messageStr && (now - existing.timestamp) < 10000) {
       // 10秒内的重复请求，直接返回错误信息
       console.warn(`[chat] 拒绝重复请求，会话 ${id}，时间间隔 ${now - existing.timestamp}ms`);
-      
+
+      // SSE 是流式响应，按约定返回 200 OK（覆盖 NestJS POST 默认的 201）
+      res.statusCode = HttpStatus.OK;
       res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
       res.setHeader('Cache-Control', 'no-cache');
       res.setHeader('Connection', 'keep-alive');
@@ -193,11 +195,13 @@ export class ConversationController {
     this.processingRequests.set(id, { message: messageStr, timestamp: now });
 
     // 设置 SSE 响应头
+    // SSE 是流式响应，按约定返回 200 OK（覆盖 NestJS POST 默认的 201）
+    res.statusCode = HttpStatus.OK;
     res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
     res.setHeader('Cache-Control', 'no-cache');
     res.setHeader('Connection', 'keep-alive');
     res.setHeader('X-Accel-Buffering', 'no'); // 禁用 nginx 缓冲
-    
+
     // 立即发送响应头，启动流式传输
     res.flushHeaders();
 
@@ -205,6 +209,13 @@ export class ConversationController {
     const formatSSE = (data: any): string => {
       return `data: ${JSON.stringify(data)}\n\n`;
     };
+
+    // SSE keep-alive 心跳：满血链路的 Critic-Refine 等节点可能数十秒只产出结构化结果、不吐 token，
+    // 长时间无字节会被浏览器/中间代理判定空闲而断连（artifact_created 还没发出就掉线）。
+    // 每 15s 发一个 SSE 注释行（以 ':' 开头，客户端忽略）保活连接。stream 结束时在 finally 清理。
+    const keepAlive = setInterval(() => {
+      if (!res.writableEnded) res.write(': keepalive\n\n');
+    }, 15_000);
 
     try {
       const isUIAction = typeof body.message === 'object' && body.message !== null;
@@ -582,7 +593,8 @@ export class ConversationController {
       };
       res.write(formatSSE(errorMessage));
     } finally {
-      // 清理处理中的请求记录
+      // 清理 keep-alive 心跳与处理中的请求记录
+      clearInterval(keepAlive);
       this.processingRequests.delete(id);
       res.end();
     }

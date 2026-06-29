@@ -34,11 +34,53 @@ services:
       dockerfile: infra/compose/Dockerfile.chat
     command: sh -c "cd /app/services/chat && bunx prisma migrate deploy"
     depends_on:
+      migrate-user-system:
+        condition: service_completed_successfully
+    environment:
+      DATABASE_URL: "postgresql://postgres:${POSTGRES_PASSWORD}@postgres:5432/autix_chat"
+    restart: "no"
+
+  migrate-user-system: # 一次性 init 容器：用户系统 Prisma 迁移
+    build:
+      context: ../..
+      dockerfile: infra/compose/Dockerfile.user-system
+    command: sh -c "cd /app/packages/database && bunx prisma migrate deploy"
+    depends_on:
       postgres:
         condition: service_healthy
     environment:
       DATABASE_URL: "postgresql://postgres:${POSTGRES_PASSWORD}@postgres:5432/autix_chat"
     restart: "no"
+
+  seed-user-system: # 一次性 init 容器：为登录页准备 admin / Admin@123456 等基础账号
+    build:
+      context: ../..
+      dockerfile: infra/compose/Dockerfile.user-system
+    command: sh -c "cd /app/packages/database && bun run prisma/seed.ts"
+    depends_on:
+      migrate-user-system:
+        condition: service_completed_successfully
+    environment:
+      DATABASE_URL: "postgresql://postgres:${POSTGRES_PASSWORD}@postgres:5432/autix_chat"
+    restart: "no"
+
+  user-system:
+    build:
+      context: ../..
+      dockerfile: infra/compose/Dockerfile.user-system
+    ports:
+      - "4002:4002"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      seed-user-system:
+        condition: service_completed_successfully
+    environment:
+      DATABASE_URL: "postgresql://postgres:${POSTGRES_PASSWORD}@postgres:5432/autix_chat"
+      JWT_SECRET: ${JWT_SECRET:-your-super-secret-key-min-32-chars-change-in-production}
+      JWT_ACCESS_EXPIRES_IN: ${JWT_ACCESS_EXPIRES_IN:-1d}
+      JWT_REFRESH_EXPIRES_IN: ${JWT_REFRESH_EXPIRES_IN:-30d}
+      PORT: 4002
 
   chat:
     build:
@@ -55,6 +97,7 @@ services:
       DATABASE_URL: "postgresql://postgres:${POSTGRES_PASSWORD}@postgres:5432/autix_chat"
       OPENAI_API_KEY: ${OPENAI_API_KEY}
       OPENAI_BASE_URL: ${OPENAI_BASE_URL:-}
+      JWT_SECRET: ${JWT_SECRET:-your-super-secret-key-min-32-chars-change-in-production}
     healthcheck:
       test: ["CMD", "bun", "-e", "fetch('http://localhost:4001/ready').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
       interval: 30s
@@ -66,11 +109,19 @@ services:
     build:
       context: ../..
       dockerfile: infra/compose/Dockerfile.web
+      args:
+        NEXT_PUBLIC_CHAT_API_URL: http://localhost:4001
+        NEXT_PUBLIC_USER_API_URL: http://localhost:4002/api
     ports:
       - "3002:3002" # 端口对齐实际
     depends_on:
       chat:
         condition: service_healthy
+      user-system:
+        condition: service_started
+    environment:
+      NEXT_PUBLIC_CHAT_API_URL: http://localhost:4001
+      NEXT_PUBLIC_USER_API_URL: http://localhost:4002/api
 
 volumes:
   pgdata: {}

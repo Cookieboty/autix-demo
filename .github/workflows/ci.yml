@@ -8,6 +8,12 @@ on:
     # 每天 02:00 UTC（北京时间 10:00）跑一次 nightly eval
     - cron: "0 18 * * *"
   workflow_dispatch:
+    inputs:
+      run_browser_e2e:
+        description: "Run the full browser E2E release gate"
+        required: false
+        type: boolean
+        default: false
 
 jobs:
   # ── 每次 PR / push 跑：便宜、确定、不花钱的门禁 ──
@@ -35,6 +41,9 @@ jobs:
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: 1.3.11
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
       - run: bun install --frozen-lockfile
       # 顺序：便宜的先跑、最容易挂的先挂、失败早退
       - name: Typecheck
@@ -61,6 +70,9 @@ jobs:
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: 1.3.11
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
       - run: bun install --frozen-lockfile
       # run-eval.ts 退出码非 0 → job 失败（第十七章的质量门禁）
       - name: Run eval gate
@@ -72,6 +84,47 @@ jobs:
         with:
           name: eval-report
           path: services/chat/eval/reports/
+
+  # ── nightly / 手动：真实浏览器 E2E，覆盖登录、SSE、持久化和 Artifact 面板 ──
+  browser-e2e:
+    if: (github.event_name == 'schedule' && vars.RUN_BROWSER_E2E == '1') || (github.event_name == 'workflow_dispatch' && (inputs.run_browser_e2e || vars.RUN_BROWSER_E2E == '1'))
+    runs-on: ubuntu-latest
+    env:
+      POSTGRES_PASSWORD: postgres
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      OPENAI_BASE_URL: ${{ secrets.OPENAI_BASE_URL }}
+      JWT_SECRET: your-super-secret-key-min-32-chars-change-in-production
+      RUN_BROWSER_E2E: "1"
+      E2E_WEB_URL: http://localhost:3002
+      E2E_CHAT_API_URL: http://localhost:4001
+      E2E_USER_API_URL: http://localhost:4002/api
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.11
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: bun install --frozen-lockfile
+      - run: bunx playwright install --with-deps chromium
+      - name: Start full stack
+        run: docker compose up --build -d
+        working-directory: infra/compose
+      - name: Wait for web
+        run: bunx wait-on http://localhost:3002 http://localhost:4001/ready tcp:4002 --timeout 180000
+      - name: Run browser E2E
+        run: bun run test:e2e
+      - name: Stop full stack
+        if: always()
+        run: docker compose down -v
+        working-directory: infra/compose
+      - name: Upload Playwright report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: playwright-report/
 
   # ── 构建并推送镜像到 GHCR（仅 main push，且 ci 门禁通过后才跑）──
   docker:
@@ -86,6 +139,8 @@ jobs:
         include:
           - name: chat
             dockerfile: infra/compose/Dockerfile.chat
+          - name: user-system
+            dockerfile: infra/compose/Dockerfile.user-system
           - name: web
             dockerfile: infra/compose/Dockerfile.web
     steps:
