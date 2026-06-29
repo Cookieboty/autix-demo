@@ -6,3 +6,6 @@ node_modules
 
 # 评测 runner 产出的报告快照（每次跑都生成，不入库）
 /eval/reports/
+
+# LangGraph API
+.langgraph_api

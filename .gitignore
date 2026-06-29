@@ -22,3 +22,5 @@ CLAUDE.md
 uploads/
 **/uploads/
 .cursor
+# LangGraph API
+.langgraph_api
